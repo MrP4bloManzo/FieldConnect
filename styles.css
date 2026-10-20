@@ -13,3 +13,76 @@
 .stat-button:focus-visible,button:focus-visible{outline:2px solid #70baff;outline-offset:3px}
 #search{min-width:220px}
 @media(max-width:580px){.head-actions{width:100%}.head-actions button{flex:1}.toolbar .tiny{width:100%}}
+
+
+/* Corporate minimalist visual system */
+:root{color-scheme:light;--bg:#f4f6f9;--panel:#ffffff;--panel2:#f8fafc;--line:#e2e7ee;--text:#182230;--muted:#697586;--blue:#2457a7;--cyan:#2457a7;--pink:#2457a7;--green:#16794b;--amber:#996500;--red:#b42332;font-family:Inter,"Segoe UI",Arial,sans-serif}
+body{background:var(--bg);color:var(--text)}
+button{border-radius:7px;box-shadow:none;transition:background .15s,border-color .15s,color .15s}
+button:hover{transform:none;filter:none}
+.primary{background:#244f8f;color:#fff;box-shadow:none}
+.primary:hover{background:#193e73}
+.ghost{background:#fff;color:#344054;border-color:#d0d7e2}
+.ghost:hover{background:#f2f5f9;border-color:#aab6c6}
+.outline{background:#fff;color:#244f8f;border-color:#c7d5e8}
+.danger{background:#fff1f1;color:#a61b29;border-color:#f1c7cc}
+.brand-symbol{color:#203b59}
+.brand-symbol span{background:none;color:#2870a8}
+.brand-symbol i{color:#2870a8}
+.brand-name{color:#182230}
+.brand-name span{color:#2870a8}
+.tagline{color:#7a8798;letter-spacing:2px}
+.eyebrow{color:#42658e;letter-spacing:1.4px}
+.hero{background:#f8fafc}
+.hero:before{border-color:#dbe4ef;box-shadow:0 0 0 35px #eaf0f7,0 0 0 80px #f0f4f9,0 0 100px #dce6f2}
+.hero h1{color:#172b45;letter-spacing:-2px}
+.hero h1 span{background:none;color:#315f94}
+.hero-copy>p,.feature-row{color:#66758a}
+.feature-row span:before{color:#4775a7}
+.hero-foot{color:#8390a1}
+.login-side{background:#fff;border-left:1px solid #e1e6ed}
+.login-card h2{color:#1b2939}
+.field{color:#465467}
+.field input,.field select,.field textarea,.toolbar input,.toolbar select{background:#fff;color:#1d2939;border:1px solid #d5dce6;border-radius:7px}
+.field input:focus,.field select:focus,.field textarea:focus,.toolbar input:focus,.toolbar select:focus{outline:2px solid #d7e5f7;border-color:#5279aa}
+.demo-hint{background:#f4f7fb;border:1px solid #e1e7ef;color:#64748b;border-radius:8px}
+.app-shell{background:var(--bg)}
+.topbar{background:#fff;border-bottom:1px solid #e1e6ed;box-shadow:none}
+.layout{max-width:1240px}
+.heading h1{color:#172b45;letter-spacing:-1px}
+.heading p,.stat-note,.role-name,.footer,.ticket p,.detail-item small{color:#697586}
+.stats{gap:14px}
+.stat{background:#fff;border:1px solid #e1e6ed;border-radius:9px;box-shadow:none}
+.stat-value{color:#1e3552}
+.stat-label{color:#697586}
+.toolbar{background:transparent}
+.ticket{background:#fff;border:1px solid #e1e6ed;border-radius:9px;box-shadow:none;gap:18px}
+.ticket:hover{border-color:#b7c5d7;transform:none}
+.ticket h3{color:#1c2b3d}
+.folio{color:#697586;letter-spacing:.7px}
+.pill{border:1px solid #e0e6ee;background:#f5f7fa;color:#566477;border-radius:5px;font-weight:600}
+.pill.green{background:#eaf7ef;color:#176b43;border-color:#c9e9d5}
+.pill.blue{background:#edf4fc;color:#285a91;border-color:#d3e3f6}
+.pill.amber{background:#fff6e5;color:#8a5a00;border-color:#f1dfb4}
+.pill.red{background:#fff0f1;color:#a61b29;border-color:#f1c9ce}
+.section-title{color:#27384b}
+.modal-bg{background:rgba(16,30,48,.42);backdrop-filter:blur(2px);padding:20px}
+.modal{background:#fff;color:#1c2938;border:1px solid #dfe5ed;border-radius:12px;box-shadow:0 24px 80px #182b4329;max-width:860px}
+.modal-head{background:#fff;border-bottom:1px solid #e7ebf0;position:sticky;top:0;z-index:2}
+.modal-head h2{color:#172b45;font-size:21px;letter-spacing:-.4px}
+.modal-head .ghost{width:36px;height:36px;padding:0;display:grid;place-items:center;font-size:17px;border-radius:7px}
+.detail-section{border-top:1px solid #e7ebf0}
+.detail-grid{gap:10px}
+.detail-item{background:#f8fafc;border:1px solid #edf0f4;border-radius:7px;padding:12px}
+.detail-item strong{color:#27384b;font-weight:600}
+.check-row{border-bottom:1px solid #edf0f4;color:#344054}
+.timeline-item{border-left-color:#d8e1ec}
+.timeline-item strong{color:#27384b}
+.timeline-item p{color:#697586}
+.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:9px;color:#697586}
+.toast{background:#172b45;color:#fff;border-radius:8px;box-shadow:0 8px 28px #14253b22}
+.toast.bad{background:#a61b29}
+.footer{border-top:1px solid #e2e7ee}
+.ticket-overdue{border-color:#e8b9bf;box-shadow:inset 3px 0 #b42332}
+.overdue-text{color:#b42332}
+@media(max-width:700px){.login-page{grid-template-columns:1fr}.hero{min-height:auto;padding:28px}.hero-copy{margin:42px 0}.hero h1{font-size:42px}.login-side{border-left:0;border-top:1px solid #e1e6ed}.modal-bg{padding:8px}.modal{max-height:94vh}}
