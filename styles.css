@@ -86,3 +86,29 @@ button:hover{transform:none;filter:none}
 .ticket-overdue{border-color:#e8b9bf;box-shadow:inset 3px 0 #b42332}
 .overdue-text{color:#b42332}
 @media(max-width:700px){.login-page{grid-template-columns:1fr}.hero{min-height:auto;padding:28px}.hero-copy{margin:42px 0}.hero h1{font-size:42px}.login-side{border-left:0;border-top:1px solid #e1e6ed}.modal-bg{padding:8px}.modal{max-height:94vh}}
+
+
+/* Executive administration workspace */
+.super-panel{margin:24px 0 30px;padding:22px;background:#fff;border:1px solid #e1e6ed;border-radius:10px}
+.super-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}
+.super-heading h2{font-size:19px;letter-spacing:-.4px;margin:6px 0}
+.super-heading p{margin:0;color:#697586;font-size:13px}
+.super-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 28px}
+.super-kpis>div{min-width:0;padding:16px;border:1px solid #e5eaf0;border-radius:8px;background:#fafbfd}
+.super-kpis span,.super-kpis small{display:block;color:#697586;font-size:12px}
+.super-kpis strong{display:block;color:#1d3553;font-size:25px;letter-spacing:-.6px;margin:10px 0 5px;overflow-wrap:anywhere}
+.team-heading{padding-top:20px;border-top:1px solid #e7ebf0}
+.employee-list{display:flex;flex-direction:column}
+.employee-row{display:flex;align-items:center;gap:14px;padding:14px 2px;border-bottom:1px solid #edf0f4}
+.employee-row:last-child{border-bottom:0}
+.employee-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:8px;display:grid;place-items:center;background:#edf3fa;color:#315d91;font-weight:700;font-size:13px}
+.employee-main{flex:1;min-width:120px;display:flex;flex-direction:column;gap:4px}
+.employee-main strong{font-size:13px;color:#24364a}
+.employee-main>span,.employee-main small{font-size:12px;color:#697586}
+.progress-track{height:6px;border-radius:99px;background:#e8edf3;overflow:hidden}
+.progress-track span{display:block;height:100%;background:#3f6f9f;border-radius:99px;transition:width .2s}
+.ticket-progress{max-width:260px;margin:12px 0}
+.ticket-progress>div:first-child{display:flex;justify-content:space-between;font-size:11px;color:#697586;margin-bottom:6px}
+.ticket-progress strong{color:#24364a}
+@media(max-width:800px){.super-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-row{flex-wrap:wrap}.employee-main{flex-basis:calc(100% - 60px)}.super-heading{align-items:flex-start;flex-direction:column}}
+@media(max-width:480px){.super-panel{padding:14px}.super-kpis>div{padding:11px}.super-kpis strong{font-size:21px}.employee-row .pill{margin-left:54px}}
