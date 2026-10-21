@@ -112,3 +112,8 @@ button:hover{transform:none;filter:none}
 .ticket-progress strong{color:#24364a}
 @media(max-width:800px){.super-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-row{flex-wrap:wrap}.employee-main{flex-basis:calc(100% - 60px)}.super-heading{align-items:flex-start;flex-direction:column}}
 @media(max-width:480px){.super-panel{padding:14px}.super-kpis>div{padding:11px}.super-kpis strong{font-size:21px}.employee-row .pill{margin-left:54px}}
+
+
+/* Official FieldConnect logo */
+.brand-logo{display:block;width:64px;height:44px;object-fit:contain;flex:0 0 auto}.brand-logo.small{width:58px;height:40px}.brand-logo.nav{width:48px;height:42px}.brand{gap:14px}.brand-link{gap:11px}
+@media(max-width:580px){.brand-logo.small{width:48px;height:34px}.brand-logo.nav{width:39px;height:35px}}
