@@ -221,3 +221,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* Ticket filter controls and accessible interaction polish */
+.toolbar select,.toolbar input{min-width:0;max-width:100%}
+.toolbar select{flex:0 1 auto}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #6ea8e8;outline-offset:2px}
+input,select,textarea{scroll-margin-bottom:24px}
+@media(max-width:760px){.toolbar{display:flex;flex-wrap:wrap;gap:8px}.toolbar input,.toolbar select{flex:1 1 calc(50% - 8px);width:auto;min-width:0}.toolbar button{flex:1 1 100%}}
+@media(max-width:480px){.toolbar input,.toolbar select{flex:1 1 100%;width:100%}.toolbar button{width:100%}}
