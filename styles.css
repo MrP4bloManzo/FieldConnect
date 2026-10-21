@@ -117,3 +117,5 @@ button:hover{transform:none;filter:none}
 /* Official FieldConnect logo */
 .brand-logo{display:block;width:64px;height:44px;object-fit:contain;flex:0 0 auto}.brand-logo.small{width:58px;height:40px}.brand-logo.nav{width:48px;height:42px}.brand{gap:14px}.brand-link{gap:11px}
 @media(max-width:580px){.brand-logo.small{width:48px;height:34px}.brand-logo.nav{width:39px;height:35px}}
+
+.boot-logo{display:block;width:120px;height:82px;object-fit:contain;margin:0 auto}.boot{gap:14px}
