@@ -16,19 +16,192 @@ function seed(){return[
 {id:3,folio:"FC-20261017-003",client:"Redes del Occidente",project:"Auditoría de infraestructura",site_id:"VLL-0032",service_type:"Diagnóstico de red",site_name:"Site Villa de Álvarez",region:"Villa de Álvarez, Colima",address:"Zona centro, Villa de Álvarez",contact_name:"Miguel Santos",contact_phone:"312 000 0001",scheduled_at:new Date(Date.now()-3600000).toISOString(),priority:"normal",scope:"Diagnóstico de pérdida intermitente y reporte de causa raíz.",activities:"Medición y validación",tools:"Analizador, laptop",materials:"No requeridos",prerequisites:"Acceso autorizado",technical_notes:"Documentar mediciones",agreed_amount:4200,travel_expenses:300,other_expenses:0,payment_status:"paid",financial_notes:"Liquidado",status:"in_progress",logistics_status:"ready",created_by:"Demo Admin",logistics_owner:"Andrea Torres",idc_owner:"Manuel Díaz",progress:65,result:"",checklist:[true,true,false,false,false,false],evidence:[],notes:[{type:"note",body:"Se detectó variación en potencia óptica. Continúa el diagnóstico.",author:"Manuel Díaz",at:now()}],events:[{type:"Servicio reservado",actor:"Manuel Díaz",at:now()},{type:"Ejecución iniciada",actor:"Manuel Díaz",at:now()}],created_at:now()},
 {id:4,folio:"FC-20261016-004",client:"Telco México",project:"Continuidad operativa",site_id:"ARM-0077",service_type:"Correctivo",site_name:"Nodo Armería",region:"Armería, Colima",address:"Carretera principal, Armería",contact_name:"Sofía Pérez",contact_phone:"313 000 0002",scheduled_at:new Date(Date.now()-86400000).toISOString(),priority:"high",scope:"Revisión de alimentación y restablecimiento del equipo.",activities:"Diagnóstico eléctrico y pruebas",tools:"Multímetro y equipo de seguridad",materials:"Fusibles",prerequisites:"Permiso de acceso",technical_notes:"Reporte fotográfico requerido",agreed_amount:5100,travel_expenses:500,other_expenses:0,payment_status:"paid",financial_notes:"Pagado",status:"completed",logistics_status:"ready",created_by:"Demo Admin",logistics_owner:"Andrea Torres",idc_owner:"Manuel Díaz",progress:100,result:"Alimentación restablecida. Pruebas de conectividad satisfactorias.",checklist:[true,true,true,true,true,true],evidence:[{label:"Reporte técnico de ejemplo",url:"https://example.com",by:"Manuel Díaz",at:now()}],notes:[],events:[{type:"Ticket creado",actor:"Administración",at:now()},{type:"Servicio completado",actor:"Manuel Díaz",at:now()}],created_at:now()}
 ]}
-let data;try{data=JSON.parse(localStorage.getItem(KEY))||seed()}catch{data=seed()}
-let user=null,filter="",query="",priorityFilter="",regionFilter="",sortBy="scheduled",modalTicket=null;
+let data;try{data=normalizeTickets(JSON.parse(localStorage.getItem(KEY)))}catch{data=seed()}
+let user=null,filter="",query="",priorityFilter="",regionFilter="",sortBy="scheduled",modalTicket=null,view="services";
 const TEAM_KEY="fieldconnect_team_v1";
 function seedTeam(){return [{id:"emp-1",name:"Manzo",role:"superadmin",area:"Dirección",email:"manzo@fieldconnect.demo",phone:"",status:"active"},{id:"emp-2",name:"Demo Admin",role:"admin",area:"Administración",email:"admin@fieldconnect.demo",phone:"",status:"active"},{id:"emp-3",name:"Andrea Torres",role:"logistics",area:"Ingeniería de apoyo",email:"andrea@fieldconnect.demo",phone:"",status:"active"},{id:"emp-4",name:"Manuel Díaz",role:"idc",area:"Ingeniería de campo",email:"manuel@fieldconnect.demo",phone:"",status:"active"},{id:"emp-5",name:"Lucía Herrera",role:"idc",area:"Ingeniería de campo",email:"lucia@fieldconnect.demo",phone:"",status:"active"}]}
 let team;try{team=JSON.parse(localStorage.getItem(TEAM_KEY));if(!Array.isArray(team))team=seedTeam()}catch{team=seedTeam()}
 function saveTeam(){try{localStorage.setItem(TEAM_KEY,JSON.stringify(team))}catch{toast("No se pudo guardar el directorio local.",true)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}
-function toast(msg,bad=false){const n=document.createElement("div");n.className="toast"+(bad?" bad":"");n.textContent=msg;document.body.appendChild(n);setTimeout(()=>n.remove(),3200)}
+function toast(msg,bad=false){const n=document.createElement("div");n.className="toast"+(bad?" bad":"");n.setAttribute("role",bad?"alert":"status");n.textContent=msg;document.body.appendChild(n);setTimeout(()=>n.remove(),3200)}
 function symbol(size=""){return '<img class="brand-logo '+esc(size)+'" src="./assets/fieldconnect-logo.svg" alt="FieldConnect Group" />'}
-function login(){root.innerHTML='<main class="login-page"><section class="hero"><div class="brand">'+symbol('small')+'<div><div class="brand-name">FieldConnect <span>Group</span></div><div class="tagline">CONECTANDO TECNOLOGÍA EN TODAS PARTES</div></div></div><div class="hero-copy"><div class="eyebrow">Field operations platform</div><h1>La tecnología<br>no se detiene.<br><span>Tu operación, tampoco.</span></h1><p>Coordina servicios de campo, conecta a tus equipos técnicos y mantén cada proyecto bajo control desde un solo lugar.</p><div class="feature-row"><span>Tickets inteligentes</span><span>Seguimiento en tiempo real</span><span>Control operativo</span></div></div><div class="hero-foot">FIELDCONNECT GROUP · DEMO INTERACTIVA · 2026</div></section><section class="login-side"><div class="login-card"><div class="eyebrow">Bienvenido de vuelta</div><h2>Centro de operaciones</h2><p>Selecciona un perfil de demostración para explorar el flujo de trabajo completo.</p><form id="login-form"><label class="field">Nombre de usuario<input name="name" value="Manzo" required maxlength="60"></label><label class="field">Entrar como<select name="role"><option value="superadmin">Directivo · acceso total demo</option><option value="admin">Administración</option><option value="logistics">Ingeniería de apoyo / Logística</option><option value="idc">Ingeniero de campo (IDC)</option></select></label><button class="primary" type="submit">Entrar a la plataforma ↗</button><p class="error" id="login-error"></p></form><div class="demo-hint"><strong>◉ MODO DEMO</strong><br>Sin contraseña ni backend. Los cambios se guardan en este navegador mediante localStorage. Usa «Restablecer demo» para recuperar los datos de ejemplo.</div></div></section></main>'}
+const demoProfiles = [
+  { role: "superadmin", name: "Manzo", description: "Avance y equipo" },
+  { role: "admin", name: "Demo Admin", description: "Creación de tickets" },
+  { role: "logistics", name: "Andrea Torres", description: "Preparación y liberación" },
+  { role: "idc", name: "Manuel Díaz", description: "Ejecución y cierre" }
+];
+
+function login() {
+  root.innerHTML = `<main class="login-page">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="brand">${symbol("small")}<div class="brand-name">FieldConnect <span>Group</span></div></div>
+      <div class="hero-copy">
+        <div class="eyebrow">Ingeniería de campo</div>
+        <h1 id="hero-title">Cada servicio,<br><span>bajo control.</span></h1>
+        <p>Coordina, ejecuta y documenta tus operaciones de campo en un solo lugar.</p>
+      </div>
+      <ol class="hero-flow"><li>Coordinación</li><li>Ejecución</li><li>Cierre</li></ol>
+    </section>
+    <section class="login-side">
+      <div class="login-card">
+        <span class="demo-label">Demo interactiva</span>
+        <h2>Centro de operaciones</h2>
+        <p>Elige un perfil para ver cómo trabaja cada equipo.</p>
+        <form id="login-form">
+          <fieldset class="profiles"><legend>Perfil de acceso</legend>
+            ${demoProfiles.map((profile, index) => `<label class="profile-option">
+              <input type="radio" name="role" value="${profile.role}" ${index === 0 ? "checked" : ""}>
+              <span><strong>${roles[profile.role]}</strong><small>${profile.description}</small></span>
+            </label>`).join("")}
+          </fieldset>
+          <label class="field">Nombre de usuario<input id="demo-name" name="name" value="Manzo" required maxlength="60" autocomplete="off"></label>
+          <button class="primary" type="submit">Entrar a la plataforma <span aria-hidden="true">→</span></button>
+          <p class="error" id="login-error" role="status"></p>
+        </form>
+        <p class="local-note">Tus cambios de demostración se guardan en este navegador.</p>
+      </div>
+    </section>
+  </main>`;
+}
+
+function normalizeTickets(tickets) {
+  if (!Array.isArray(tickets)) throw new Error("El respaldo debe contener una lista de tickets.");
+  const ids = new Set();
+  return tickets.map(ticket => {
+    if (!ticket || !/^\d+$/.test(String(ticket.id)) || typeof ticket.folio !== "string" ||
+        !ticket.folio.trim() || typeof ticket.client !== "string" || !ticket.client.trim() ||
+        ids.has(String(ticket.id))) throw new Error("El respaldo contiene tickets inválidos o repetidos.");
+    ids.add(String(ticket.id));
+    const entries = key => Array.isArray(ticket[key]) ? ticket[key].filter(entry => entry && typeof entry === "object") : [];
+    return {
+      ...ticket,
+      region: typeof ticket.region === "string" ? ticket.region : "",
+      checklist: checksText.map((_, index) => ticket.checklist?.[index] === true),
+      evidence: entries("evidence").filter(entry => typeof entry.url === "string" && /^https?:\/\//i.test(entry.url)),
+      notes: entries("notes"),
+      events: entries("events")
+    };
+  });
+}
 function pill(v,log=false){let label=log?logisticsNames[v]:statusNames[v]||priorityNames[v]||v;let c=["completed","ready"].includes(v)?"green":["assigned","in_progress"].includes(v)?"blue":["in_coordination","on_hold"].includes(v)?"amber":["cancelled","urgent"].includes(v)?"red":"";return '<span class="pill '+c+'">'+esc(label||v)+'</span>'}
-function visibleTickets(){const list=data.filter(t=>{if(user.role==="idc"&&t.idc_owner&&t.idc_owner!==user.name&&t.status!=="available")return false;if(user.role==="idc"&&!t.idc_owner&&!(t.status==="available"&&t.logistics_status==="ready"))return false;if(user.role==="logistics"&&t.logistics_owner&&t.logistics_owner!==user.name&&t.status!=="available")return false;const text=[t.folio,t.client,t.project,t.site_id,t.site_name,t.region,t.idc_owner,t.logistics_owner].join(" ").toLowerCase();const overdue=t.scheduled_at&&new Date(t.scheduled_at).getTime()<Date.now()&&!["completed","cancelled"].includes(t.status);const filterMatch=filter==="__overdue"?overdue:filter==="__mine"?(t.idc_owner===user.name||t.logistics_owner===user.name):(!filter||t.status===filter);return filterMatch&&(!query||text.includes(query.toLowerCase()))&&(!priorityFilter||t.priority===priorityFilter)&&(!regionFilter||String(t.region||"").toLowerCase()===regionFilter.toLowerCase())});return list.sort((a,b)=>{if(sortBy==="priority"){const rank={urgent:0,high:1,normal:2,low:3};return(rank[a.priority]??9)-(rank[b.priority]??9)}if(sortBy==="client")return String(a.client).localeCompare(String(b.client),"es");const da=a.scheduled_at?new Date(a.scheduled_at).getTime():Infinity,db=b.scheduled_at?new Date(b.scheduled_at).getTime():Infinity;return da-db})}
-function render(){let list=visibleTickets(),active=list.filter(t=>!["completed","cancelled"].includes(t.status)).length,ready=list.filter(t=>t.status==="available"&&t.logistics_status==="ready").length,running=list.filter(t=>["in_progress","on_hold"].includes(t.status)).length,done=list.filter(t=>t.status==="completed").length;let heading=user.role==="superadmin"?"Centro de control ejecutivo":user.role==="admin"?"Panel administrativo":user.role==="logistics"?"Coordinación logística":"Mis servicios de campo";root.innerHTML='<div class="app-shell"><header class="topbar"><div class="brand-link">'+symbol("nav")+'<div><div class="brand-name">FieldConnect <span>Group</span></div><div class="tagline">FIELD OPERATIONS</div></div></div><div class="userbox"><div class="avatar">'+esc(user.name[0].toUpperCase())+'</div><div><div class="user-name">'+esc(user.name)+'</div><div class="role-name">'+roles[user.role]+'</div></div><button class="ghost" data-act="logout">Salir</button></div></header><main class="layout"><div class="heading"><div><div class="eyebrow">Dashboard / '+esc(roles[user.role])+'</div><h1>'+heading+'</h1><p>Una vista clara de tus operaciones, equipos y servicios.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">'+(["admin","superadmin"].includes(user.role)?'<button class="primary" data-act="new">＋ Crear ticket</button>':'')+'<button class="ghost" data-act="export-csv">Exportar CSV</button><button class="ghost" data-act="backup">Respaldo JSON</button><button class="ghost" data-act="import">Importar</button><button class="ghost" data-act="reset">Restablecer demo</button></div></div><input id="import-file" type="file" accept="application/json,.json" hidden><section class="stats"><div class="stat"><div class="stat-label">Servicios activos</div><div class="stat-value">'+active+'</div><div class="stat-note">Pendientes o en ejecución</div></div><div class="stat"><div class="stat-label">Listos para IDC</div><div class="stat-value">'+ready+'</div><div class="stat-note">Coordinación completada</div></div><div class="stat"><div class="stat-label">En ejecución / espera</div><div class="stat-value">'+running+'</div><div class="stat-note">Seguimiento técnico</div></div><div class="stat"><div class="stat-label">Completados</div><div class="stat-value">'+done+'</div><div class="stat-note">Servicios finalizados</div></div></section>'+(user.role==="superadmin"?superAdminPanel():"")+'<div class="toolbar"><input id="search" placeholder="Buscar folio, cliente, proyecto, sitio, región o responsable…" value="'+esc(query)+'"><select id="filter"><option value="">Todos los estados</option><option value="__overdue">Vencidos</option><option value="__mine">Asignados a mí</option>'+Object.entries(statusNames).map(([k,v])=>'<option value="'+k+'" '+(filter===k?'selected':'')+'>'+v+'</option>').join("")+'</select><select id="priority-filter"><option value="">Todas las prioridades</option>'+Object.entries(priorityNames).map(([k,v])=>'<option value="'+k+'" '+(priorityFilter===k?'selected':'')+'>'+v+'</option>').join("")+'</select><select id="region-filter"><option value="">Todas las regiones</option>'+[...new Set(data.map(t=>t.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es")).map(v=>'<option value="'+esc(v)+'" '+(regionFilter===v?'selected':'')+'>'+esc(v)+'</option>').join("")+'</select><select id="sort-by"><option value="scheduled" '+(sortBy==="scheduled"?'selected':'')+'>Ordenar por fecha</option><option value="priority" '+(sortBy==="priority"?'selected':'')+'>Prioridad primero</option><option value="client" '+(sortBy==="client"?'selected':'')+'>Cliente A–Z</option></select><button class="ghost" data-act="refresh">Actualizar</button></div><h2 class="section-title">Servicios y tickets <span class="tiny">('+list.length+')</span></h2><div class="tickets" style="margin-top:14px">'+(list.length?list.map(ticketCard).join(""):'<div class="empty">No hay tickets para mostrar con estos filtros.</div>')+'</div></main><div class="footer">FIELDCONNECT GROUP · DEMO FRONTEND · DATOS LOCALES DEL NAVEGADOR</div></div>'}
+function canSeeTicket(ticket) {
+  if (user.role === "idc") {
+    return ticket.idc_owner ? ticket.idc_owner === user.name :
+      ticket.status === "available" && ticket.logistics_status === "ready";
+  }
+  return user.role !== "logistics" || !ticket.logistics_owner ||
+    ticket.logistics_owner === user.name || ticket.status === "available";
+}
+
+const isOpen = ticket => !["completed", "cancelled"].includes(ticket.status);
+const isOverdue = ticket => ticket.scheduled_at && new Date(ticket.scheduled_at) < new Date() && isOpen(ticket);
+const searchable = value => String(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const priorityOrder = { urgent: 0, high: 1, normal: 2, low: 3 };
+
+function visibleTickets(tickets = data.filter(canSeeTicket)) {
+  const searchTerm = searchable(query.trim());
+  return tickets.filter(ticket => {
+    const text = [ticket.folio, ticket.client, ticket.project, ticket.site_id, ticket.site_name,
+      ticket.region, ticket.idc_owner, ticket.logistics_owner].join(" ");
+    const matchesStatus = filter === "__overdue" ? isOverdue(ticket) :
+      filter === "__mine" ? [ticket.idc_owner, ticket.logistics_owner].includes(user.name) :
+        !filter || ticket.status === filter;
+    return matchesStatus && searchable(text).includes(searchTerm) &&
+      (!priorityFilter || ticket.priority === priorityFilter) &&
+      (!regionFilter || ticket.region === regionFilter);
+  }).sort((a, b) => {
+    if (sortBy === "priority") return (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9);
+    if (sortBy === "client") return a.client.localeCompare(b.client, "es-MX");
+    const dateA = Date.parse(a.scheduled_at) || Infinity;
+    const dateB = Date.parse(b.scheduled_at) || Infinity;
+    return dateA - dateB;
+  });
+}
+
+function options(entries, selected) {
+  return entries.map(([key, label]) =>
+    `<option value="${esc(key)}"${key === selected ? " selected" : ""}>${esc(label)}</option>`).join("");
+}
+
+function renderResults(tickets = data.filter(canSeeTicket)) {
+  const list = visibleTickets(tickets);
+  const hasFilters = Boolean(filter || query.trim() || priorityFilter || regionFilter);
+  document.getElementById("ticket-count").textContent = `${list.length} de ${tickets.length}`;
+  document.getElementById("tickets").innerHTML = list.length ? list.map(ticketCard).join("") :
+    `<div class="empty"><strong>${hasFilters ? "Sin coincidencias" : "Aún no tienes servicios disponibles"}</strong>
+      <p>${hasFilters ? "Prueba con otra búsqueda o ajusta los filtros." : "Aquí aparecerán los tickets disponibles para tu perfil."}</p>
+      ${hasFilters ? '<button class="ghost" data-act="clear-filters">Limpiar filtros</button>' : ""}
+    </div>`;
+}
+
+function render() {
+  const tickets = data.filter(canSeeTicket);
+  const isDirector = user.role === "superadmin";
+  const canCreate = isDirector || user.role === "admin";
+  const headings = {
+    superadmin: ["Centro de control ejecutivo", "Supervisa la operación y el avance de los servicios."],
+    admin: ["Panel administrativo", "Crea tickets y supervisa su avance."],
+    logistics: ["Coordinación logística", "Prepara los servicios y libéralos para ingeniería de campo."],
+    idc: ["Mis servicios de campo", "Reserva un servicio, registra evidencias y documenta el cierre."]
+  };
+  const [heading, description] = headings[user.role];
+  const summary = [
+    ["Activos", tickets.filter(isOpen).length, "Pendientes de cierre", "active"],
+    ["Listos para IDC", tickets.filter(t => t.status === "available" && t.logistics_status === "ready").length, "Disponibles para reservar", "ready"],
+    ["En ejecución", tickets.filter(t => t.status === "in_progress").length, "Con trabajo en curso", "running"],
+    ["Vencidos", tickets.filter(isOverdue).length, "Servicios abiertos fuera de fecha", "overdue"]
+  ];
+  const regions = [...new Set(tickets.map(t => t.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es-MX"));
+
+  root.innerHTML = `<div class="app-shell">
+    <header class="topbar">
+      <div class="brand-link">${symbol("nav")}<div class="brand-name">FieldConnect <span>Group</span></div></div>
+      <div class="userbox"><span class="demo-label">Demo</span><div class="avatar" aria-hidden="true">${esc(user.name[0].toUpperCase())}</div>
+        <div><div class="user-name">${esc(user.name)}</div><div class="role-name">${roles[user.role]}</div></div>
+        <button class="ghost" data-act="logout">Cambiar perfil</button>
+      </div>
+    </header>
+    <main class="layout">
+      <div class="heading dashboard-heading">
+        <div><div class="eyebrow">${roles[user.role]}</div><h1>${heading}</h1><p>${description}</p></div>
+        ${canCreate ? '<button class="primary" data-act="new">＋ Crear ticket</button>' : ""}
+      </div>
+      <section class="stats" aria-label="Resumen operativo">
+        ${summary.map(([label, value, note, tone]) => `<div class="stat stat-${tone}">
+          <div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div>
+        </div>`).join("")}
+      </section>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+      <div class="workspace-bar">
+        <nav aria-label="Vista del panel">
+          <button type="button" class="view-tab" aria-pressed="${view === "services"}" data-act="services">Servicios</button>
+          ${isDirector ? `<button type="button" class="view-tab" aria-pressed="${view === "team"}" data-act="team">Equipo y avance</button>` : ""}
+        </nav>
+        <details class="data-menu"><summary>Datos del demo</summary><div>
+          <button class="ghost" data-act="export-csv">Exportar CSV</button>
+          <button class="ghost" data-act="backup">Respaldo JSON</button>
+          <button class="ghost" data-act="import">Importar respaldo</button>
+          <button class="ghost" data-act="reset">Restablecer demo</button>
+        </div></details>
+      </div>
+      ${view === "team" && isDirector ? superAdminPanel() : `<section class="service-workspace" aria-labelledby="services-title">
+        <div class="services-heading"><h2 id="services-title" class="section-title">Servicios y tickets</h2>
+          <span class="results-count" id="ticket-count" role="status"></span></div>
+        <div class="toolbar service-filters">
+          <label class="search-field"><span>Buscar</span><input type="search" id="search" placeholder="Folio, cliente, sitio o responsable" value="${esc(query)}"></label>
+          <label>Estado<select id="filter">${options([["", "Todos"], ["__overdue", "Vencidos"], ["__mine", "Asignados a mí"], ...Object.entries(statusNames)], filter)}</select></label>
+          <label>Prioridad<select id="priority-filter">${options([["", "Todas"], ...Object.entries(priorityNames)], priorityFilter)}</select></label>
+          <label>Región<select id="region-filter">${options([["", "Todas"], ...regions.map(region => [region, region])], regionFilter)}</select></label>
+          <label>Orden<select id="sort-by">${options([["scheduled", "Por fecha"], ["priority", "Prioridad primero"], ["client", "Cliente A–Z"]], sortBy)}</select></label>
+        </div>
+        <div class="tickets" id="tickets"></div>
+      </section>`}
+    </main>
+    <footer class="footer">FieldConnect Group · Demostración con datos locales</footer>
+  </div>`;
+  if (view === "services") renderResults(tickets);
+}
 
 function superAdminPanel(){
  const activeTeam=team.filter(e=>e.status==="active").length;
@@ -47,10 +220,35 @@ function employeeForm(id){
  modal(emp?"Editar perfil de empleado":"Agregar empleado",'<form id="employee-form" class="form-grid"><input type="hidden" name="id" value="'+esc(emp?.id||'')+'">'+field("name","Nombre completo")+field("email","Correo de contacto","email")+field("phone","Teléfono","tel")+'<label class="field">Rol<select name="role">'+Object.entries(roles).filter(([k])=>k!=="superadmin"||emp?.role==="superadmin").map(([k,v])=>'<option value="'+k+'" '+(emp?.role===k?"selected":"")+'>'+v+'</option>').join("")+'</select></label>'+field("area","Área / especialidad")+'<label class="field">Estado<select name="status"><option value="active" '+(emp?.status!=="inactive"?"selected":"")+'>Activo</option><option value="inactive" '+(emp?.status==="inactive"?"selected":"")+'>Inactivo</option></select></label><div class="span2 form-actions"><button type="button" class="ghost" data-act="close">Cancelar</button>'+(emp?'<button type="button" class="danger" data-act="delete-employee" data-id="'+esc(emp.id)+'">Eliminar perfil</button>':'')+'<button class="primary">Guardar perfil</button></div></form>',id||"DIRECTORIO");
 }
 
-function ticketCard(t){const overdue=t.scheduled_at&&new Date(t.scheduled_at).getTime()<Date.now()&&!["completed","cancelled"].includes(t.status);let a='<button class="ghost" data-act="detail" data-id="'+t.id+'">Ver detalle</button>';if(user.role==="logistics"&&t.status==="available"&&t.logistics_status==="pending")a+='<button class="primary" data-act="claim-logistics" data-id="'+t.id+'">Reclamar coordinación</button>';if((["admin","superadmin"].includes(user.role)||(user.role==="logistics"&&t.logistics_owner===user.name))&&t.status==="available"&&t.logistics_status==="in_coordination")a+='<button class="primary" data-act="release" data-id="'+t.id+'">Liberar para IDC</button>';if(user.role==="idc"&&t.status==="available"&&t.logistics_status==="ready")a+='<button class="primary" data-act="claim-idc" data-id="'+t.id+'">Reservar servicio</button>';return '<article class="ticket '+(overdue?"ticket-overdue":"")+'"><div><div class="folio">'+esc(t.folio)+' · PRIORIDAD '+esc((priorityNames[t.priority]||t.priority).toUpperCase())+(overdue?' · <span class="overdue-text">VENCIDO</span>':"")+'</div><h3>'+esc(t.client)+' — '+esc(t.service_type)+'</h3><p><strong>'+esc(t.project)+'</strong> · SITE ID: '+esc(t.site_id)+'</p><p>'+esc(t.site_name)+' · '+esc(t.region)+'</p><p>Programado: '+esc(date(t.scheduled_at))+'</p>'+(user.role==="superadmin"?'<div class="ticket-progress"><div><span>Avance</span><strong>'+Math.max(0,Math.min(100,Number(t.progress)||0))+'%</strong></div><div class="progress-track"><span style="width:'+Math.max(0,Math.min(100,Number(t.progress)||0))+'%"></span></div></div>':'')+'<div class="pills">'+pill(t.status)+' '+pill(t.logistics_status,true)+'</div><p>Apoyo: '+esc(t.logistics_owner||"Sin asignar")+' · IDC: '+esc(t.idc_owner||"Sin asignar")+'</p></div><div class="ticket-actions">'+a+'</div></article>'}
-function modal(title,body,id){document.querySelector(".modal-bg")?.remove();const previousFocus=document.activeElement;let el=document.createElement("div");el.className="modal-bg";el.innerHTML='<section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="eyebrow">FIELD SERVICE / '+esc(id||"DEMO")+'</div><h2>'+esc(title)+'</h2></div><button class="ghost" data-act="close">✕</button></div>'+body+'</section>';const closeModal=()=>{el.remove();modalTicket=null;if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus()};el.addEventListener("click",e=>{if(e.target===el)closeModal()});el.querySelector("[data-act=\"close\"]")?.addEventListener("click",e=>{e.preventDefault();closeModal()});el.addEventListener("keydown",e=>{if(e.key==="Escape"){e.preventDefault();closeModal()}});document.body.append(el);modalTicket=id;el.querySelector("[data-act=\"close\"]")?.focus();return el}
+function ticketCard(t){const overdue=t.scheduled_at&&new Date(t.scheduled_at).getTime()<Date.now()&&!["completed","cancelled"].includes(t.status);let a='<button class="ghost" data-act="detail" data-id="'+t.id+'">Ver detalle</button>';if(user.role==="logistics"&&t.status==="available"&&t.logistics_status==="pending")a+='<button class="primary" data-act="claim-logistics" data-id="'+t.id+'">Reclamar coordinación</button>';if((["admin","superadmin"].includes(user.role)||(user.role==="logistics"&&t.logistics_owner===user.name))&&t.status==="available"&&t.logistics_status==="in_coordination")a+='<button class="primary" data-act="release" data-id="'+t.id+'">Liberar para IDC</button>';if(user.role==="idc"&&t.status==="available"&&t.logistics_status==="ready")a+='<button class="primary" data-act="claim-idc" data-id="'+t.id+'">Reservar servicio</button>';return '<article class="ticket '+(overdue?"ticket-overdue":"")+'"><div><div class="folio">'+esc(t.folio)+' · PRIORIDAD '+esc((priorityNames[t.priority]||t.priority).toUpperCase())+(overdue?' · <span class="overdue-text">VENCIDO</span>':"")+'</div><h3>'+esc(t.client)+' — '+esc(t.service_type)+'</h3><p><strong>'+esc(t.project)+'</strong> · SITE ID: '+esc(t.site_id)+'</p><p>'+esc(t.site_name)+' · '+esc(t.region)+'</p><p>Programado: '+esc(date(t.scheduled_at))+'</p>'+(user.role==="superadmin"?'<div class="ticket-progress"><div><span>Avance</span><strong>'+Math.max(0,Math.min(100,Number(t.progress)||0))+'%</strong></div><div class="progress-track"><span style="width:'+Math.max(0,Math.min(100,Number(t.progress)||0))+'%"></span></div></div>':'')+'<div class="pills">'+pill(t.status)+' '+(t.status==="available"?pill(t.logistics_status,true):"")+'</div><p>Apoyo: '+esc(t.logistics_owner||"Sin asignar")+' · IDC: '+esc(t.idc_owner||"Sin asignar")+'</p></div><div class="ticket-actions">'+a+'</div></article>'}
+function modal(title, body, id) {
+  const previous = document.querySelector(".modal-bg");
+  const opener = previous?.opener || document.activeElement;
+  previous?.remove();
+  const dialog = document.createElement("dialog");
+  dialog.className = "modal-bg";
+  dialog.opener = opener;
+  dialog.setAttribute("aria-labelledby", "modal-title");
+  dialog.innerHTML = `<section class="modal">
+    <div class="modal-head"><h2 id="modal-title">${esc(title)}</h2>
+    <button class="ghost" type="button" data-act="close" aria-label="Cerrar ventana" autofocus>✕</button></div>
+    ${body}
+  </section>`;
+  dialog.addEventListener("click", event => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    modalTicket = null;
+    if (opener?.isConnected) opener.focus();
+  });
+  document.body.append(dialog);
+  modalTicket = id;
+  dialog.showModal();
+  return dialog;
+}
 function item(k,v){return '<div class="detail-item"><small>'+esc(k)+'</small><strong>'+esc(v||"No indicado")+'</strong></div>'}
-function detail(t){let own=user.role==="admin"||t.idc_owner===user.name&&user.role==="idc"||t.logistics_owner===user.name&&user.role==="logistics",idc=user.role==="idc"&&t.idc_owner===user.name&&!["completed","cancelled"].includes(t.status);let h='<div class="heading"><div><h1 style="font-size:22px">'+esc(t.client)+' — '+esc(t.service_type)+'</h1><p>'+esc(t.project)+' · '+esc(t.site_id)+'</p></div><div>'+pill(t.status)+' '+pill(t.logistics_status,true)+'</div></div><div class="detail-grid">'+item("Sitio / región",t.site_name+" · "+t.region)+item("Domicilio",t.address)+item("Programación",date(t.scheduled_at))+item("Prioridad",priorityNames[t.priority])+item("Responsable logístico",t.logistics_owner)+item("IDC asignado",t.idc_owner)+item("Contacto",(t.contact_name||"")+" · "+(t.contact_phone||""))+item("Progreso",t.progress+"%")+'</div><div class="detail-section"><h3>Alcance y preparación</h3><div class="detail-grid">'+item("Alcance",t.scope)+item("Actividades",t.activities)+item("Herramientas",t.tools)+item("Materiales",t.materials)+item("Requisitos previos",t.prerequisites)+item("Notas técnicas",t.technical_notes)+'</div></div>';if(["admin","superadmin"].includes(user.role))h+='<div class="detail-section"><h3>Información económica · Administración</h3><div class="detail-grid">'+item("Importe acordado",money(t.agreed_amount))+item("Viáticos",money(t.travel_expenses))+item("Otros gastos",money(t.other_expenses))+item("Estado de pago",t.payment_status)+item("Notas económicas",t.financial_notes)+'</div></div>';h+='<div class="detail-section"><h3>Checklist de cierre</h3><form id="check-form">'+checksText.map((c,i)=>'<label class="check-row"><input type="checkbox" name="c'+i+'" '+(t.checklist[i]?'checked':'')+(!idc?'disabled':'')+'> '+esc(c)+'</label>').join("")+(idc?'<button class="ghost">Guardar checklist</button>':'')+'</form></div>';if(idc){h+='<div class="detail-section"><h3>Ejecución del servicio</h3><div class="toolbar">'+(t.status==="assigned"?'<button class="primary" data-act="start" data-id="'+t.id+'">Iniciar servicio</button>':'')+(["assigned","in_progress"].includes(t.status)?'<button class="ghost" data-act="hold" data-id="'+t.id+'">Reportar bloqueo</button>':'')+(t.status==="on_hold"?'<button class="primary" data-act="resume" data-id="'+t.id+'">Reanudar servicio</button>':'')+'</div><form id="evidence-form" class="form-grid"><label class="field">Nombre de evidencia<input name="label" required></label><label class="field">URL de evidencia<input name="url" type="url" placeholder="https://…" required></label><div class="span2"><button class="ghost">＋ Agregar evidencia</button></div></form><form id="result-form"><label class="field">Resultado del servicio<textarea name="result" required>'+esc(t.result)+'</textarea></label><button class="primary">Finalizar servicio</button><p class="tiny">El cierre requiere seis puntos, resultado y al menos una evidencia.</p><p class="error" id="close-error"></p></form></div>'}if(own){h+='<div class="detail-section"><h3>Registrar nota o incidencia</h3><form id="note-form" class="form-grid"><label class="field">Tipo<select name="type"><option value="note">Nota técnica</option><option value="incident">Incidencia</option><option value="blocker">Bloqueo</option></select></label><label class="field span2">Descripción<textarea name="body" required maxlength="3000"></textarea></label><div class="span2"><button class="ghost">Guardar registro</button></div></form></div>'}h+='<div class="detail-section"><h3>Evidencias</h3><div class="timeline">'+(t.evidence.length?t.evidence.map(e=>'<div class="timeline-item"><strong>'+esc(e.label)+'</strong><p><a href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">Abrir evidencia ↗</a></p><p>'+esc(e.by)+' · '+esc(date(e.at))+'</p></div>').join(""):'<p class="tiny">Sin evidencias registradas.</p>')+'</div></div><div class="detail-section"><h3>Notas e incidencias</h3><div class="timeline">'+(t.notes.length?t.notes.map(n=>'<div class="timeline-item"><strong>'+esc(n.type)+' · '+esc(n.author)+'</strong><p>'+esc(n.body)+'</p><p>'+esc(date(n.at))+'</p></div>').join(""):'<p class="tiny">Sin notas registradas.</p>')+'</div></div><div class="detail-section"><h3>Historial de actividad</h3><div class="timeline">'+t.events.map(e=>'<div class="timeline-item"><strong>'+esc(e.type)+'</strong><p>'+esc(e.actor)+' · '+esc(date(e.at))+'</p></div>').join("")+'</div></div>';modal(t.folio,h,t.id)}
+function detail(t){let own=["admin","superadmin"].includes(user.role)||t.idc_owner===user.name&&user.role==="idc"||t.logistics_owner===user.name&&user.role==="logistics",idc=user.role==="idc"&&t.idc_owner===user.name&&!["completed","cancelled"].includes(t.status);let h='<div class="heading"><div><h1 style="font-size:22px">'+esc(t.client)+' — '+esc(t.service_type)+'</h1><p>'+esc(t.project)+' · '+esc(t.site_id)+'</p></div><div>'+pill(t.status)+' '+pill(t.logistics_status,true)+'</div></div><div class="detail-grid">'+item("Sitio / región",t.site_name+" · "+t.region)+item("Domicilio",t.address)+item("Programación",date(t.scheduled_at))+item("Prioridad",priorityNames[t.priority])+item("Responsable logístico",t.logistics_owner)+item("IDC asignado",t.idc_owner)+item("Contacto",(t.contact_name||"")+" · "+(t.contact_phone||""))+item("Progreso",t.progress+"%")+'</div><div class="detail-section"><h3>Alcance y preparación</h3><div class="detail-grid">'+item("Alcance",t.scope)+item("Actividades",t.activities)+item("Herramientas",t.tools)+item("Materiales",t.materials)+item("Requisitos previos",t.prerequisites)+item("Notas técnicas",t.technical_notes)+'</div></div>';if(["admin","superadmin"].includes(user.role))h+='<div class="detail-section"><h3>Información económica · Administración</h3><div class="detail-grid">'+item("Importe acordado",money(t.agreed_amount))+item("Viáticos",money(t.travel_expenses))+item("Otros gastos",money(t.other_expenses))+item("Estado de pago",t.payment_status)+item("Notas económicas",t.financial_notes)+'</div></div>';h+='<div class="detail-section"><h3>Checklist de cierre</h3><form id="check-form">'+checksText.map((c,i)=>'<label class="check-row"><input type="checkbox" name="c'+i+'" '+(t.checklist[i]?'checked':'')+(!idc?'disabled':'')+'> '+esc(c)+'</label>').join("")+(idc?'<button class="ghost">Guardar checklist</button>':'')+'</form></div>';if(idc){h+='<div class="detail-section"><h3>Ejecución del servicio</h3><div class="toolbar">'+(t.status==="assigned"?'<button class="primary" data-act="start" data-id="'+t.id+'">Iniciar servicio</button>':'')+(["assigned","in_progress"].includes(t.status)?'<button class="ghost" data-act="hold" data-id="'+t.id+'">Reportar bloqueo</button>':'')+(t.status==="on_hold"?'<button class="primary" data-act="resume" data-id="'+t.id+'">Reanudar servicio</button>':'')+'</div><form id="evidence-form" class="form-grid"><label class="field">Nombre de evidencia<input name="label" required></label><label class="field">URL de evidencia<input name="url" type="url" placeholder="https://…" required></label><div class="span2"><button class="ghost">＋ Agregar evidencia</button></div></form><form id="result-form"><label class="field">Resultado del servicio<textarea name="result" required>'+esc(t.result)+'</textarea></label><button class="primary">Finalizar servicio</button><p class="tiny">El cierre requiere seis puntos, resultado y al menos una evidencia.</p><p class="error" id="close-error"></p></form></div>'}if(own){h+='<div class="detail-section"><h3>Registrar nota o incidencia</h3><form id="note-form" class="form-grid"><label class="field">Tipo<select name="type"><option value="note">Nota técnica</option><option value="incident">Incidencia</option><option value="blocker">Bloqueo</option></select></label><label class="field span2">Descripción<textarea name="body" required maxlength="3000"></textarea></label><div class="span2"><button class="ghost">Guardar registro</button></div></form></div>'}if(t.result)h+='<div class="detail-section"><h3>Resultado del servicio</h3>'+item("Informe de cierre",t.result)+'</div>';h+='<div class="detail-section"><h3>Evidencias</h3><div class="timeline">'+(t.evidence.length?t.evidence.map(e=>'<div class="timeline-item"><strong>'+esc(e.label)+'</strong><p><a href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">Abrir evidencia ↗</a></p><p>'+esc(e.by)+' · '+esc(date(e.at))+'</p></div>').join(""):'<p class="tiny">Sin evidencias registradas.</p>')+'</div></div><div class="detail-section"><h3>Notas e incidencias</h3><div class="timeline">'+(t.notes.length?t.notes.map(n=>'<div class="timeline-item"><strong>'+esc(n.type)+' · '+esc(n.author)+'</strong><p>'+esc(n.body)+'</p><p>'+esc(date(n.at))+'</p></div>').join(""):'<p class="tiny">Sin notas registradas.</p>')+'</div></div><div class="detail-section"><h3>Historial de actividad</h3><div class="timeline">'+t.events.map(e=>'<div class="timeline-item"><strong>'+esc(e.type)+'</strong><p>'+esc(e.actor)+' · '+esc(date(e.at))+'</p></div>').join("")+'</div></div>';modal(t.folio,h,t.id)}
 function newTicket(){
  const fields=[
   ["client","Cliente"],["project","Proyecto"],["site_id","SITE ID"],
@@ -80,9 +278,52 @@ function newTicket(){
 function event(t,type){t.events.unshift({type,actor:user.name,at:now()});t.updated_at=now()}
 
 function downloadFile(filename,content,type){const blob=new Blob([content],{type:type});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-function action(act,id){let t=data.find(x=>String(x.id)===String(id));const ticketActions=new Set(["detail","claim-logistics","release","claim-idc","start","resume","hold"]);if(ticketActions.has(act)&&!t)return toast("El servicio ya no está disponible. Actualiza el panel.",true);if(act==="detail")return detail(t);if(act==="new")return newTicket();if(act==="new-employee")return employeeForm();if(act==="edit-employee"&&user.role==="superadmin")return employeeForm(id);if(act==="delete-employee"&&user.role==="superadmin"){if(confirm("¿Eliminar este perfil del directorio?")){team=team.filter(e=>e.id!==id);saveTeam();render();toast("Perfil eliminado del directorio.")}return}if(act==="logout"){user=null;login();return}if(act==="close"){document.querySelector(".modal-bg")?.remove();return}if(act==="reset"){if(confirm("¿Restablecer tickets y directorio demo? Se perderán los cambios locales.")){data=seed();team=seedTeam();saveTeam();save();toast("Datos de demostración restablecidos.");render()}return}if(act==="refresh"){render();toast("Panel actualizado.");return}if(act==="export-csv"){const cols=["folio","client","project","site_id","service_type","site_name","region","scheduled_at","priority","status","logistics_status","logistics_owner","idc_owner","progress","result"];const csv=[cols.join(","),...visibleTickets().map(x=>cols.map(k=>'"'+String(x[k]??"").replace(/"/g,'""')+'"').join(","))].join("\r\n");downloadFile("fieldconnect-tickets.csv","\uFEFF"+csv,"text/csv;charset=utf-8;");toast("CSV exportado.");return}if(act==="backup"){downloadFile("fieldconnect-respaldo.json",JSON.stringify({version:1,exported_at:now(),tickets:data},null,2),"application/json");toast("Respaldo descargado.");return}if(act==="import"){document.getElementById("import-file").click();return}if(act==="claim-logistics"){if(user.role!=="logistics")return toast("Esta acción es exclusiva de Ingeniería de apoyo.",true);if(t.status!=="available"||t.logistics_status!=="pending")return toast("El ticket ya no está disponible.",true);t.logistics_owner=user.name;t.logistics_status="in_coordination";event(t,"Coordinación reclamada");toast("Ticket reclamado para coordinación.")}else if(act==="release"){if(!["logistics","admin","superadmin"].includes(user.role))return toast("No tienes permiso para liberar servicios.",true);if(t.logistics_owner!==user.name&&!["admin","superadmin"].includes(user.role))return toast("Solo el responsable logístico o administración puede liberar.",true);if(t.logistics_status!=="in_coordination")return toast("El ticket no está en coordinación.",true);t.logistics_status="ready";event(t,"Ticket liberado para IDC");toast("Servicio liberado para asignación IDC.")}else if(act==="claim-idc"){if(user.role!=="idc")return toast("Esta acción es exclusiva de Ingeniería de campo.",true);if(t.status!=="available"||t.logistics_status!=="ready"||t.idc_owner)return toast("Este servicio ya no está disponible.",true);t.idc_owner=user.name;t.status="assigned";event(t,"Servicio reservado por IDC");toast("Servicio asignado a tu perfil.")}else if(act==="start"||act==="resume"){if(user.role!=="idc"||t.idc_owner!==user.name)return toast("Solo el IDC asignado puede iniciar o reanudar este servicio.",true);if(["completed","cancelled"].includes(t.status))return toast("Un servicio cerrado no puede reanudarse.",true);t.status="in_progress";t.progress=Math.max(10,t.progress||0);event(t,"Ejecución iniciada / reanudada");toast("Ejecución actualizada.")}else if(act==="hold"){if(user.role!=="idc"||t.idc_owner!==user.name)return toast("Solo el IDC asignado puede poner el servicio en espera.",true);if(["completed","cancelled"].includes(t.status))return toast("Un servicio cerrado no puede ponerse en espera.",true);let reason=prompt("Describe el bloqueo o motivo de espera:");if(!reason?.trim())return;t.notes.unshift({type:"blocker",body:reason.trim(),author:user.name,at:now()});t.status="on_hold";event(t,"Servicio puesto en espera");toast("Bloqueo registrado.")}save();render();if(["start","resume","hold"].includes(act))detail(t)}
-document.addEventListener("submit",e=>{e.preventDefault();let f=e.target;if(f.id==="login-form"){let fd=new FormData(f);user={name:String(fd.get("name")).trim(),role:fd.get("role")};if(!user.name)return;render()}else if(f.id==="employee-form"){if(user.role!=="superadmin")return;const fd=Object.fromEntries(new FormData(f));const existing=team.find(e=>e.id===fd.id);const entry={id:fd.id||("emp-"+Date.now()),name:fd.name.trim(),email:fd.email.trim(),phone:fd.phone.trim(),role:fd.role,area:fd.area.trim(),status:fd.status};if(existing)Object.assign(existing,entry);else team.push(entry);saveTeam();document.querySelector(".modal-bg")?.remove();render();toast(existing?"Perfil actualizado.":"Empleado agregado al directorio.")}else if(f.id==="new-form"){let fd=Object.fromEntries(new FormData(f));let id=Math.max(0,...data.map(t=>Number(t.id)))+1;let ticket={...fd,id,folio:"FC-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+String(id).padStart(3,"0"),scheduled_at:fd.scheduled_at?new Date(fd.scheduled_at).toISOString():null,priority:fd.priority,status:"available",logistics_status:"pending",created_by:user.name,logistics_owner:"",idc_owner:"",progress:0,agreed_amount:0,travel_expenses:0,other_expenses:0,payment_status:"pending",financial_notes:"",result:"",checklist:[false,false,false,false,false,false],evidence:[],notes:[],events:[],created_at:now()};event(ticket,"Ticket creado");data.unshift(ticket);save();document.querySelector(".modal-bg")?.remove();render();toast("Ticket creado: "+ticket.folio)}else{let t=data.find(x=>String(x.id)===String(modalTicket));if(!t)return;if(f.id==="check-form"){t.checklist=checksText.map((_,i)=>f.elements["c"+i].checked);event(t,"Checklist actualizado");save();detail(t);toast("Checklist guardado.")}else if(f.id==="evidence-form"){let fd=Object.fromEntries(new FormData(f));if(!/^https?:\/\//i.test(fd.url))return toast("Usa una URL HTTP o HTTPS válida.",true);t.evidence.unshift({label:fd.label,url:fd.url,by:user.name,at:now()});event(t,"Evidencia agregada");save();detail(t);toast("Evidencia registrada.")}else if(f.id==="note-form"){let fd=Object.fromEntries(new FormData(f));t.notes.unshift({type:fd.type,body:fd.body,author:user.name,at:now()});event(t,"Nota registrada: "+fd.type);save();detail(t);toast("Nota guardada.")}else if(f.id==="result-form"){let result=new FormData(f).get("result").trim();if(t.checklist.some(v=>!v))return document.getElementById("close-error").textContent="Completa los seis puntos del checklist.";if(!t.evidence.length)return document.getElementById("close-error").textContent="Agrega al menos una evidencia.";if(!result)return document.getElementById("close-error").textContent="Escribe el resultado del servicio.";t.result=result;t.status="completed";t.progress=100;event(t,"Servicio completado");save();document.querySelector(".modal-bg")?.remove();render();toast("Servicio cerrado correctamente.")}}});
+function action(act,id){let t=data.find(x=>String(x.id)===String(id));const ticketActions=new Set(["detail","claim-logistics","release","claim-idc","start","resume","hold"]);if(ticketActions.has(act)&&!t)return toast("El servicio ya no está disponible. Actualiza el panel.",true);if(act==="detail"&&canSeeTicket(t))return detail(t);if(act==="new"&&["admin","superadmin"].includes(user.role))return newTicket();if(act==="new-employee")return employeeForm();if(act==="edit-employee"&&user.role==="superadmin")return employeeForm(id);if(act==="delete-employee"&&user.role==="superadmin"){if(confirm("¿Eliminar este perfil del directorio?")){team=team.filter(e=>e.id!==id);saveTeam();render();toast("Perfil eliminado del directorio.")}return}if(act==="logout"){user=null;view="services";filter=query=priorityFilter=regionFilter="";sortBy="scheduled";login();scrollTo(0,0);return}if(act==="services"||act==="team"){view=act;render();root.querySelector(`[data-act="${act}"]`).focus();return}if(act==="clear-filters"){filter=query=priorityFilter=regionFilter="";render();document.getElementById("search").focus();return}if(act==="close"){document.querySelector(".modal-bg")?.close();return}if(act==="reset"){if(confirm("¿Restablecer tickets y directorio demo? Se perderán los cambios locales.")){data=seed();team=seedTeam();saveTeam();save();toast("Datos de demostración restablecidos.");render()}return}if(act==="refresh"){render();toast("Panel actualizado.");return}if(act==="export-csv"){const cols=["folio","client","project","site_id","service_type","site_name","region","scheduled_at","priority","status","logistics_status","logistics_owner","idc_owner","progress","result"];const csv=[cols.join(","),...visibleTickets().map(x=>cols.map(k=>'"'+String(x[k]??"").replace(/"/g,'""')+'"').join(","))].join("\r\n");downloadFile("fieldconnect-tickets.csv","\uFEFF"+csv,"text/csv;charset=utf-8;");toast("CSV exportado.");return}if(act==="backup"){downloadFile("fieldconnect-respaldo.json",JSON.stringify({version:1,exported_at:now(),tickets:data},null,2),"application/json");toast("Respaldo descargado.");return}if(act==="import"){document.getElementById("import-file").click();return}if(act==="claim-logistics"){if(user.role!=="logistics")return toast("Esta acción es exclusiva de Ingeniería de apoyo.",true);if(t.status!=="available"||t.logistics_status!=="pending")return toast("El ticket ya no está disponible.",true);t.logistics_owner=user.name;t.logistics_status="in_coordination";event(t,"Coordinación reclamada");toast("Ticket reclamado para coordinación.")}else if(act==="release"){if(!["logistics","admin","superadmin"].includes(user.role))return toast("No tienes permiso para liberar servicios.",true);if(t.logistics_owner!==user.name&&!["admin","superadmin"].includes(user.role))return toast("Solo el responsable logístico o administración puede liberar.",true);if(t.logistics_status!=="in_coordination")return toast("El ticket no está en coordinación.",true);t.logistics_status="ready";event(t,"Ticket liberado para IDC");toast("Servicio liberado para asignación IDC.")}else if(act==="claim-idc"){if(user.role!=="idc")return toast("Esta acción es exclusiva de Ingeniería de campo.",true);if(t.status!=="available"||t.logistics_status!=="ready"||t.idc_owner)return toast("Este servicio ya no está disponible.",true);t.idc_owner=user.name;t.status="assigned";event(t,"Servicio reservado por IDC");toast("Servicio asignado a tu perfil.")}else if(act==="start"||act==="resume"){if(user.role!=="idc"||t.idc_owner!==user.name)return toast("Solo el IDC asignado puede iniciar o reanudar este servicio.",true);if(["completed","cancelled"].includes(t.status))return toast("Un servicio cerrado no puede reanudarse.",true);t.status="in_progress";t.progress=Math.max(10,t.progress||0);event(t,"Ejecución iniciada / reanudada");toast("Ejecución actualizada.")}else if(act==="hold"){if(user.role!=="idc"||t.idc_owner!==user.name)return toast("Solo el IDC asignado puede poner el servicio en espera.",true);if(["completed","cancelled"].includes(t.status))return toast("Un servicio cerrado no puede ponerse en espera.",true);let reason=prompt("Describe el bloqueo o motivo de espera:");if(!reason?.trim())return;t.notes.unshift({type:"blocker",body:reason.trim(),author:user.name,at:now()});t.status="on_hold";event(t,"Servicio puesto en espera");toast("Bloqueo registrado.")}save();render();if(["start","resume","hold"].includes(act))detail(t)}
+document.addEventListener("submit",e=>{e.preventDefault();let f=e.target;if(f.id==="login-form"){let fd=new FormData(f);user={name:String(fd.get("name")).trim(),role:fd.get("role")};if(!user.name){document.getElementById("login-error").textContent="Escribe un nombre para entrar.";return}render();scrollTo(0,0)}else if(f.id==="employee-form"){if(user.role!=="superadmin")return;const fd=Object.fromEntries(new FormData(f));const existing=team.find(e=>e.id===fd.id);const entry={id:fd.id||("emp-"+Date.now()),name:fd.name.trim(),email:fd.email.trim(),phone:fd.phone.trim(),role:fd.role,area:fd.area.trim(),status:fd.status};if(existing)Object.assign(existing,entry);else team.push(entry);saveTeam();document.querySelector(".modal-bg")?.remove();render();toast(existing?"Perfil actualizado.":"Empleado agregado al directorio.")}else if(f.id==="new-form"){let fd=Object.fromEntries(new FormData(f));let id=data.reduce((max,t)=>Math.max(max,Number(t.id)),0)+1;let ticket={...fd,id,folio:"FC-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+String(id).padStart(3,"0"),scheduled_at:fd.scheduled_at?new Date(fd.scheduled_at).toISOString():null,priority:fd.priority,status:"available",logistics_status:"pending",created_by:user.name,logistics_owner:"",idc_owner:"",progress:0,agreed_amount:0,travel_expenses:0,other_expenses:0,payment_status:"pending",financial_notes:"",result:"",checklist:[false,false,false,false,false,false],evidence:[],notes:[],events:[],created_at:now()};event(ticket,"Ticket creado");data.unshift(ticket);save();document.querySelector(".modal-bg")?.remove();render();toast("Ticket creado: "+ticket.folio)}else{let t=data.find(x=>String(x.id)===String(modalTicket));if(!t)return;if(f.id==="check-form"){t.checklist=checksText.map((_,i)=>f.elements["c"+i].checked);event(t,"Checklist actualizado");save();detail(t);toast("Checklist guardado.")}else if(f.id==="evidence-form"){let fd=Object.fromEntries(new FormData(f));if(!/^https?:\/\//i.test(fd.url))return toast("Usa una URL HTTP o HTTPS válida.",true);t.evidence.unshift({label:fd.label,url:fd.url,by:user.name,at:now()});event(t,"Evidencia agregada");save();detail(t);toast("Evidencia registrada.")}else if(f.id==="note-form"){let fd=Object.fromEntries(new FormData(f));t.notes.unshift({type:fd.type,body:fd.body,author:user.name,at:now()});event(t,"Nota registrada: "+fd.type);save();detail(t);toast("Nota guardada.")}else if(f.id==="result-form"){let result=new FormData(f).get("result").trim();if(t.checklist.some(v=>!v))return document.getElementById("close-error").textContent="Completa los seis puntos del checklist.";if(!t.evidence.length)return document.getElementById("close-error").textContent="Agrega al menos una evidencia.";if(!result)return document.getElementById("close-error").textContent="Escribe el resultado del servicio.";t.result=result;t.status="completed";t.progress=100;event(t,"Servicio completado");save();document.querySelector(".modal-bg")?.remove();render();toast("Servicio cerrado correctamente.")}}});
 document.addEventListener("click",e=>{let b=e.target.closest("[data-act]");if(b)action(b.dataset.act,b.dataset.id)});
-document.addEventListener("change",e=>{if(e.target.id==="filter"){filter=e.target.value;render();return}if(e.target.id==="priority-filter"){priorityFilter=e.target.value;render();return}if(e.target.id==="region-filter"){regionFilter=e.target.value;render();return}if(e.target.id==="sort-by"){sortBy=e.target.value;render();return}if(e.target.id==="import-file"&&e.target.files&&e.target.files[0]){const input=e.target;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(reader.result);const incoming=Array.isArray(parsed)?parsed:parsed.tickets;if(!Array.isArray(incoming)||!incoming.every(t=>t&&t.id&&t.folio&&t.client))throw new Error("El JSON no contiene tickets válidos.");if(!confirm("¿Importar "+incoming.length+" tickets y reemplazar los datos actuales?"))return;data=incoming;save();render();toast("Respaldo importado correctamente.")}catch(err){toast("No se pudo importar: "+err.message,true)}finally{input.value=""}};reader.readAsText(input.files[0])}});
-document.addEventListener("input",e=>{if(e.target.id==="search"){query=e.target.value;let pos=e.target.selectionStart;render();let n=document.getElementById("search");n?.focus();n?.setSelectionRange(pos,pos)}});
+document.addEventListener("change", event => {
+  const { target } = event;
+  if (target.name === "role" && target.form?.id === "login-form") {
+    document.getElementById("demo-name").value = demoProfiles.find(profile => profile.role === target.value).name;
+    return;
+  }
+  if (target.matches(".service-filters select")) {
+    if (target.id === "filter") filter = target.value;
+    if (target.id === "priority-filter") priorityFilter = target.value;
+    if (target.id === "region-filter") regionFilter = target.value;
+    if (target.id === "sort-by") sortBy = target.value;
+    renderResults();
+    return;
+  }
+  if (target.id !== "import-file" || !target.files?.length) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      const incoming = normalizeTickets(Array.isArray(parsed) ? parsed : parsed?.tickets);
+      if (!confirm(`¿Importar ${incoming.length} tickets y reemplazar los datos actuales?`)) return;
+      localStorage.setItem(KEY, JSON.stringify(incoming));
+      data = incoming;
+      regionFilter = "";
+      render();
+      toast("Respaldo importado correctamente.");
+    } catch (error) {
+      toast("No se pudo importar: " + error.message, true);
+    } finally {
+      target.value = "";
+    }
+  };
+  reader.onerror = () => {
+    target.value = "";
+    toast("No se pudo leer el archivo seleccionado.", true);
+  };
+  reader.readAsText(target.files[0]);
+});
+
+document.addEventListener("input", event => {
+  if (event.target.id !== "search") return;
+  query = event.target.value;
+  renderResults();
+});
+
 login();

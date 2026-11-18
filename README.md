@@ -2,6 +2,17 @@
 
 Plataforma web de gestión de operaciones de ingeniería de campo.
 
+## Demo interactiva
+
+Abre el [demo de FieldConnect en GitHub Pages](https://mrp4blomanzo.github.io/FieldConnect/) o abre `index.html` desde la raíz del repositorio. Los perfiles de ejemplo permiten probar el ciclo de un ticket:
+
+1. **Administración** crea un ticket.
+2. **Ingeniería de apoyo** reclama la coordinación y libera el servicio.
+3. **Ingeniería de campo** reserva el ticket, inicia el trabajo y lo cierra con checklist, evidencia y resultado.
+4. **Directivo** consulta los indicadores y la pestaña **Equipo y avance**.
+
+Los cambios se guardan en el navegador. El menú **Datos del demo** permite exportar tickets, importar un respaldo y restablecer los ejemplos.
+
 ## Stack
 
 - Node.js 20+
