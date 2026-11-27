@@ -8,11 +8,19 @@ Plataforma de seguimiento de servicios de ingeniería de campo con el logo ofici
 
 Solo hay dos perfiles de acceso: **Administrador** y **Directivo**. Ambos crean y supervisan tickets y administran los catálogos. Los ingenieros de apoyo y los IDC son personal del directorio, sin login.
 
-Al crear un ticket se seleccionan empresa, **ingeniero de base de proyecto / apoyo** e **IDC** del directorio, y se captura el **ID de acceso / folio de entrada**. El **SITE ID** se genera al guardar como consecutivo por empresa (`000001`, `000002`, …), protegido contra duplicados por PostgreSQL.
+Al crear un ticket se escribe libremente el nombre de la empresa y se seleccionan **ingeniero de base de proyecto / apoyo** e **IDC** del directorio, con sus estados de cobertura en México. También se registra el estado del servicio y el **ID de acceso / folio de entrada**. El **SITE ID** se genera al guardar como consecutivo por empresa (`000001`, `000002`, …). Cambiar mayúsculas o espacios en el nombre reutiliza la misma empresa y su consecutivo.
 
 Administrador y Directivo completan la coordinación y registran el inicio, las incidencias, el checklist, las evidencias y el cierre. El cierre requiere seis puntos del checklist, resultado escrito y al menos una evidencia HTTP/HTTPS.
 
 Los accesos iniciales y contraseñas están en `.local/ACCESOS.txt` del equipo donde se preparó el despliegue. Ese archivo no se publica. El botón **Contraseña** permite cambiarlas e invalida las sesiones anteriores.
+
+## Analítica
+
+**Analítica y reportes** ofrece semana actual (lunes a domingo), mes actual, rango de fechas y todo el historial, con exportación CSV. Los días se interpretan en `America/Mexico_City` e incluyen la fecha final completa.
+
+Los reportes muestran creados, abiertos, completados, estados, tipos de servicio, prioridades, empresas, estados de México, asignaciones IDC y tiempos medios de cierre. Las distribuciones se basan en los tickets creados dentro del rango; los cierres y tiempos usan la fecha real de finalización. La tasa de cierre corresponde a los completados de la cohorte creada en el periodo.
+
+La satisfacción se registra al cerrar o después en el detalle del ticket: satisfecho, neutral, insatisfecho o sin evaluar. Su porcentaje se calcula sobre las evaluaciones registradas de los cierres del periodo; los tickets sin evaluación no se consideran satisfechos.
 
 ## Desarrollo y despliegue
 

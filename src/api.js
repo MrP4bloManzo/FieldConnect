@@ -1,4 +1,4 @@
-function registerApi(app, { pool, jwt, bcrypt, jwtSecret, randomUUID, jsonParam=JSON.stringify }) {
+function registerApi(app, { pool, jwt, bcrypt, analytics, jwtSecret, randomUUID, jsonParam=JSON.stringify }) {
 const ADMIN = "admin";
 const DIRECTOR = "director";
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -28,7 +28,8 @@ function event(client, ticketId, actorId, eventType, details) {
     [ticketId, actorId, eventType, jsonParam(details || {})]
   );
 }
-const ticketSelect = "SELECT t.*, creator.name AS creator_name, logistics.name AS logistics_owner_name, idc.name AS idc_owner_name " +
+const ticketSelect = "SELECT t.*, creator.name AS creator_name, logistics.name AS logistics_owner_name, idc.name AS idc_owner_name, " +
+  "ARRAY(SELECT state_name FROM employee_coverage WHERE employee_id=t.idc_owner ORDER BY state_name) AS idc_coverage_states " +
   "FROM tickets t LEFT JOIN users creator ON creator.id=t.created_by " +
   "LEFT JOIN employees logistics ON logistics.id=t.logistics_owner LEFT JOIN employees idc ON idc.id=t.idc_owner";
 
@@ -105,28 +106,79 @@ app.post("/api/users", authenticate, roles(ADMIN,DIRECTOR), asyncRoute(async (re
 }));
 
 app.get("/api/catalogs", authenticate, asyncRoute(async (_req,res) => {
-  const [companies,employees]=await Promise.all([
+  const [companies,employees,states]=await Promise.all([
     pool.query("SELECT id,name,active FROM companies ORDER BY name"),
-    pool.query("SELECT id,name,kind,email,phone,active FROM employees ORDER BY name")
+    pool.query("SELECT e.id,e.name,e.kind,e.email,e.phone,e.active,ARRAY(SELECT state_name FROM employee_coverage WHERE employee_id=e.id ORDER BY state_name) AS coverage_states FROM employees e ORDER BY name"),
+    pool.query("SELECT name FROM mexico_states ORDER BY name")
   ]);
-  res.json({companies:companies.rows,employees:employees.rows});
+  res.json({companies:companies.rows,employees:employees.rows,states:states.rows});
 }));
-app.post("/api/companies", authenticate, roles(ADMIN,DIRECTOR), asyncRoute(async (req,res) => {
-  if (!required(req.body?.name)) return res.status(400).json({error:"Escribe el nombre de la empresa."});
-  const r=await pool.query("INSERT INTO companies(name) VALUES($1) RETURNING id,name,active",[req.body.name.trim()]);
-  res.status(201).json({company:r.rows[0]});
+function inputError(message) { const err=new Error(message);err.status=400;return err; }
+async function resolveCompany(c,value) {
+  const name=value.trim().replace(/\s+/g,' ');
+  if(!name||name.length>200)throw inputError('Escribe el nombre de la empresa (máximo 200 caracteres).');
+  await c.query('SELECT pg_advisory_xact_lock(hashtext(lower($1)))',[name]);
+  const found=await c.query("SELECT id,active FROM companies WHERE lower(regexp_replace(btrim(name),'\\s+',' ','g'))=lower($1) ORDER BY id LIMIT 1",[name]);
+  if(found.rows[0]){if(!found.rows[0].active)throw inputError('Esta empresa está inactiva.');return found.rows[0].id;}
+  const made=await c.query('INSERT INTO companies(name) VALUES($1) RETURNING id',[name]);return made.rows[0].id;
+}
+async function saveCoverage(c,id,kind,states) {
+  if(!Array.isArray(states)||states.length>32||states.some(s=>typeof s!=='string')||new Set(states).size!==states.length)throw inputError('Selecciona estados válidos, sin duplicados.');
+  if(kind==='idc'&&!states.length)throw inputError('Selecciona al menos un estado de cobertura para el IDC.');
+  if(kind!=='idc'&&states.length)throw inputError('La cobertura corresponde al personal IDC.');
+  await c.query('DELETE FROM employee_coverage WHERE employee_id=$1',[id]);
+  if(states.length)await c.query('INSERT INTO employee_coverage(employee_id,state_name) VALUES '+states.map((_,i)=>'($1,$'+(i+2)+')').join(','),[id,...states]);
+}
+app.post('/api/companies',authenticate,roles(ADMIN,DIRECTOR),asyncRoute(async(req,res)=>{
+  if(!required(req.body?.name))return res.status(400).json({error:'Escribe el nombre de la empresa.'});
+  const c=await pool.connect();
+  try{await c.query('BEGIN');const id=await resolveCompany(c,req.body.name);const r=await c.query('SELECT id,name,active FROM companies WHERE id=$1',[id]);await c.query('COMMIT');res.status(201).json({company:r.rows[0]});}
+  catch(err){await c.query('ROLLBACK');throw err;}finally{c.release();}
 }));
-app.post("/api/employees", authenticate, roles(ADMIN,DIRECTOR), asyncRoute(async (req,res) => {
-  const b=req.body || {};
-  if (!required(b.name) || !["logistics","idc"].includes(b.kind)) return res.status(400).json({error:"Nombre y tipo de personal válidos son obligatorios."});
-  const r=await pool.query("INSERT INTO employees(name,kind,email,phone) VALUES($1,$2,$3,$4) RETURNING id,name,kind,email,phone,active",[b.name.trim(),b.kind,String(b.email||"").trim(),String(b.phone||"").trim()]);
-  res.status(201).json({employee:r.rows[0]});
+app.post('/api/employees',authenticate,roles(ADMIN,DIRECTOR),asyncRoute(async(req,res)=>{
+  const b=req.body||{};
+  if(!required(b.name)||!['logistics','idc'].includes(b.kind))return res.status(400).json({error:'Nombre y tipo de personal válidos son obligatorios.'});
+  const c=await pool.connect();
+  try{
+    await c.query('BEGIN');
+    const r=await c.query('INSERT INTO employees(name,kind,email,phone) VALUES($1,$2,$3,$4) RETURNING id,name,kind,email,phone,active',[b.name.trim(),b.kind,String(b.email||'').trim(),String(b.phone||'').trim()]);
+    await saveCoverage(c,r.rows[0].id,b.kind,b.coverage_states||[]);
+    await c.query('COMMIT');res.status(201).json({employee:{...r.rows[0],coverage_states:b.coverage_states||[]}});
+  }catch(err){await c.query('ROLLBACK');throw err;}finally{c.release();}
 }));
-app.patch("/api/employees/:id", authenticate, roles(ADMIN,DIRECTOR), asyncRoute(async (req,res) => {
-  if (typeof req.body?.active !== "boolean") return res.status(400).json({error:"Indica un estado válido."});
-  const r=await pool.query("UPDATE employees SET active=$1 WHERE id=$2 RETURNING id",[req.body.active,req.params.id]);
-  if (!r.rowCount) return res.status(404).json({error:"Persona no encontrada."});
-  res.json({message:"Catálogo actualizado."});
+app.patch('/api/employees/:id',authenticate,roles(ADMIN,DIRECTOR),asyncRoute(async(req,res)=>{
+  const b=req.body||{};
+  if((b.active===undefined&&b.coverage_states===undefined)||(b.active!==undefined&&typeof b.active!=='boolean'))return res.status(400).json({error:'Indica un estado o cobertura válidos.'});
+  const c=await pool.connect();
+  try{
+    await c.query('BEGIN');const r=await c.query('SELECT id,kind FROM employees WHERE id=$1 FOR UPDATE',[req.params.id]);
+    if(!r.rows[0]){await c.query('ROLLBACK');return res.status(404).json({error:'Persona no encontrada.'});}
+    if(b.coverage_states!==undefined)await saveCoverage(c,req.params.id,r.rows[0].kind,b.coverage_states);
+    if(b.active!==undefined)await c.query('UPDATE employees SET active=$1 WHERE id=$2',[b.active,req.params.id]);
+    await c.query('COMMIT');res.json({message:'Directorio actualizado.'});
+  }catch(err){await c.query('ROLLBACK');throw err;}finally{c.release();}
+}));
+app.get('/api/analytics',authenticate,asyncRoute(async(req,res)=>{
+  let period;
+  try{
+    let minDate=null;
+    if(req.query.period==='all')minDate=(await pool.query("SELECT MIN((created_at AT TIME ZONE 'America/Mexico_City')::date)::text AS min_date FROM tickets")).rows[0].min_date;
+    period=analytics.resolvePeriod(req.query,new Date(),minDate);
+  }catch(err){return res.status(400).json({error:err.message});}
+  const step={day:'1 day',week:'1 week',month:'1 month'}[period.group];
+  const result=await pool.query(analytics.analyticsSql,[period.from,period.to,period.group,step]);
+  res.json({period,...result.rows[0].analytics});
+}));
+app.put('/api/tickets/:id/satisfaction',authenticate,asyncRoute(async(req,res)=>{
+  const b=req.body||{};
+  if(![null,'satisfied','neutral','unsatisfied'].includes(b.satisfaction)||typeof(b.notes||'')!=='string'||(b.notes||'').length>2000)return res.status(400).json({error:'Selecciona una evaluación válida y hasta 2000 caracteres de observaciones.'});
+  const c=await pool.connect();
+  try{
+    await c.query('BEGIN');
+    const r=await c.query("UPDATE tickets SET satisfaction=$1,satisfaction_notes=$2,updated_at=NOW() WHERE id=$3 AND status='completed' RETURNING id",[b.satisfaction,(b.notes||'').trim(),req.params.id]);
+    if(!r.rowCount){await c.query('ROLLBACK');return res.status(409).json({error:'Solo se evalúan tickets completados.'});}
+    await event(c,req.params.id,req.user.id,'satisfaction_updated',{satisfaction:b.satisfaction});await c.query('COMMIT');res.json({message:'Evaluación guardada.'});
+  }catch(err){await c.query('ROLLBACK');throw err;}finally{c.release();}
 }));
 
 app.get("/api/tickets", authenticate, asyncRoute(async (req, res) => {
@@ -153,9 +205,11 @@ app.post("/api/tickets", authenticate, roles(ADMIN,DIRECTOR), asyncRoute(async (
   if (requiredFields.some((k) => !required(b[k]))) {
     return res.status(400).json({ error: "Completa proyecto, tipo de servicio, sitio, región, domicilio, alcance y folio de acceso." });
   }
-  if (![b.company_id,b.logistics_owner,b.idc_owner].every(v => /^[1-9]\d*$/.test(String(v)))) {
-    return res.status(400).json({ error: "Selecciona empresa, ingeniero de apoyo e IDC del catálogo." });
+  if ((!required(b.client) && !/^[1-9]\d*$/.test(String(b.company_id))) ||
+      ![b.logistics_owner,b.idc_owner].every(v => /^[1-9]\d*$/.test(String(v)))) {
+    return res.status(400).json({ error: "Escribe la empresa y selecciona el ingeniero de apoyo y el IDC." });
   }
+  if(b.client!==undefined && (!required(b.client)||b.client.trim().length>200))return res.status(400).json({error:"Escribe el nombre de la empresa (máximo 200 caracteres)."});
   const priority = b.priority || "normal";
   if (!["low","normal","high","urgent"].includes(priority)) return res.status(400).json({ error: "Prioridad inválida." });
   const paymentStatus = b.payment_status || "pending";
@@ -171,15 +225,16 @@ app.post("/api/tickets", authenticate, roles(ADMIN,DIRECTOR), asyncRoute(async (
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
+    const companyId=required(b.client)?await resolveCompany(c,b.client):b.company_id;
     const result = await c.query(
       "INSERT INTO tickets(folio,client,project,site_id,service_type,site_name,region,address,contact_name,contact_phone," +
       "access_instructions,scheduled_at,priority,scope,activities,tools,materials,prerequisites,technical_notes," +
-      "agreed_amount,travel_expenses,other_expenses,payment_status,financial_notes,created_by,company_id,access_folio,logistics_owner,idc_owner,status,logistics_status) " +
-      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,'assigned','in_coordination') RETURNING *",
+      "agreed_amount,travel_expenses,other_expenses,payment_status,financial_notes,created_by,company_id,access_folio,logistics_owner,idc_owner,service_state,status,logistics_status) " +
+      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,'assigned','in_coordination') RETURNING *",
       [folio,"",b.project.trim(),"",b.service_type.trim(),b.site_name.trim(),b.region.trim(),
        b.address.trim(),b.contact_name || "",b.contact_phone || "",b.access_instructions || "",scheduledAt,
        priority,b.scope.trim(),b.activities || "",b.tools || "",b.materials || "",b.prerequisites || "",
-       b.technical_notes || "",amounts[0],amounts[1],amounts[2],paymentStatus,b.financial_notes || "",req.user.id,b.company_id,b.access_folio.trim(),b.logistics_owner,b.idc_owner]
+       b.technical_notes || "",amounts[0],amounts[1],amounts[2],paymentStatus,b.financial_notes || "",req.user.id,companyId,b.access_folio.trim(),b.logistics_owner,b.idc_owner,b.service_state||null]
     );
     await event(c, result.rows[0].id, req.user.id, "ticket_created", { folio: folio });
     await c.query("COMMIT");
@@ -217,6 +272,8 @@ app.post("/api/tickets/:id/release", authenticate, roles(ADMIN,DIRECTOR), asyncR
 app.post("/api/tickets/:id/status", authenticate, asyncRoute(async (req, res) => {
   const b = req.body || {};
   if (!["cancelled","in_progress","on_hold","completed"].includes(b.status)) return res.status(400).json({error:"Estado inválido."});
+  if(b.satisfaction!=null&&!['satisfied','neutral','unsatisfied'].includes(b.satisfaction))return res.status(400).json({error:"Evaluación de satisfacción inválida."});
+  if(b.satisfaction_notes!==undefined&&(typeof b.satisfaction_notes!=='string'||b.satisfaction_notes.length>2000))return res.status(400).json({error:"La evaluación admite hasta 2000 caracteres."});
 
   const c = await pool.connect();
   try {
@@ -270,8 +327,10 @@ app.post("/api/tickets/:id/status", authenticate, asyncRoute(async (req, res) =>
     await c.query(
       "UPDATE tickets SET status=$1,progress=$2,result=COALESCE($3,result), " +
       "closed_by=CASE WHEN $1='completed' THEN $4 ELSE closed_by END, " +
-      "closed_at=CASE WHEN $1='completed' THEN NOW() ELSE closed_at END,updated_at=NOW() WHERE id=$5",
-      [b.status, progress, b.result || null, req.user.id, t.id]
+      "closed_at=CASE WHEN $1='completed' THEN NOW() ELSE closed_at END, " +
+      "satisfaction=CASE WHEN $1='completed' THEN $6 ELSE satisfaction END, " +
+      "satisfaction_notes=CASE WHEN $1='completed' THEN $7 ELSE satisfaction_notes END,updated_at=NOW() WHERE id=$5",
+      [b.status, progress, b.result || null, req.user.id, t.id,b.satisfaction||null,b.satisfaction_notes?.trim()||'']
     );
     await event(c, t.id, req.user.id, "status_changed", { from: t.status, to: b.status, reason: b.reason || null });
     await c.query("COMMIT");
@@ -350,6 +409,7 @@ app.post("/api/tickets/:id/evidence", authenticate, roles(ADMIN,DIRECTOR), async
 }));
 
 app.use((err, _req, res, _next) => {
+  if(err.status===400)return res.status(400).json({error:err.message});
   if (err.code === "23514" || err.code === "23503") return res.status(400).json({error:"Revisa la empresa, el folio y los responsables activos del catálogo."});
   console.error(err);
   if (err.code === "23505") return res.status(409).json({ error: "El registro ya existe." });

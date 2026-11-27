@@ -15,3 +15,14 @@ FROM companies c JOIN employees a ON a.email='andrea@example.com' AND a.kind='lo
 JOIN employees i ON i.email='manuel@example.com' AND i.kind='idc' AND i.active
 WHERE c.name='Telco México (ejemplo)' AND c.active
 AND NOT EXISTS(SELECT 1 FROM tickets WHERE folio='FC-EJEMPLO-001');
+
+DO $$ BEGIN
+ IF to_regclass('employee_coverage') IS NOT NULL THEN
+  INSERT INTO employee_coverage(employee_id,state_name)
+  SELECT e.id,v.state_name FROM employees e JOIN (VALUES
+   ('manuel@example.com','Colima'),('manuel@example.com','Jalisco'),
+   ('lucia@example.com','Colima'),('lucia@example.com','Michoacán')
+  ) v(email,state_name) ON e.email=v.email WHERE e.kind='idc' AND e.name LIKE '%(ejemplo)%'
+  ON CONFLICT DO NOTHING;
+ END IF;
+END $$;

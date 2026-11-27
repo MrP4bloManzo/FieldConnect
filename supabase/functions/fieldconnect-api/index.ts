@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import registerApi from './shared/api.js';
 import createFetchRouter from './shared/fetch-router.js';
+import analytics from './shared/analytics.js';
 
 const sql=postgres(Deno.env.get('SUPABASE_DB_URL')!,{
   max:1,prepare:false,idle_timeout:20,connect_timeout:10,
@@ -24,7 +25,7 @@ const jwt={
   },
 };
 const router=createFetchRouter();
-registerApi(router,{pool,jwt,bcrypt,jwtSecret:'runtime-managed',randomUUID:()=>crypto.randomUUID(),jsonParam:(value:unknown)=>sql.json(value)});
+registerApi(router,{pool,jwt,bcrypt,analytics,jwtSecret:'runtime-managed',randomUUID:()=>crypto.randomUUID(),jsonParam:(value:unknown)=>sql.json(value)});
 const allowedOrigins=new Set(['https://mrp4blomanzo.github.io','http://localhost:3000','http://127.0.0.1:4173']);
 
 Deno.serve(async(request:Request)=>{

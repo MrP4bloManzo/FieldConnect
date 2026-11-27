@@ -1,7 +1,7 @@
 "use strict";
 
 const app = document.getElementById("app");
-const state = { token: localStorage.getItem("fc_token") || "", user: null, tickets: [], filter: "", query: "" };
+const state = { token: localStorage.getItem("fc_token") || "", user: null, tickets: [], filter: "", query: "", view:"services", catalogs:null, analyticsQuery:{period:"month"}, analyticsData:null, analyticsRequest:0 };
 const CHECKLIST = [
   "Se verificó el alcance solicitado",
   "Se realizaron las actividades técnicas",
@@ -11,10 +11,12 @@ const CHECKLIST = [
   "Se informó el resultado al responsable correspondiente"
 ];
 const STATUS = { available:"Disponible", assigned:"Asignado", in_progress:"En progreso", on_hold:"En espera", completed:"Completado", cancelled:"Cancelado" };
-const LOGISTICS = { pending:"Pendiente de coordinación", in_coordination:"En coordinación", ready:"Listo para asignación" };
+const LOGISTICS = { pending:"Pendiente de coordinación", in_coordination:"En coordinación", ready:"Coordinación completada" };
 const ROLE = { admin:"Administrador", director:"Directivo" };
 const canManage = () => ["admin","director"].includes(state.user?.role);
 const PRIORITY = { low:"Baja", normal:"Normal", high:"Alta", urgent:"Urgente" };
+const SATISFACTION = { satisfied:"Satisfecho", neutral:"Neutral", unsatisfied:"Insatisfecho" };
+const coverageText = x => Array.isArray(x)&&x.length ? x.join(" · ") : "Cobertura por definir";
 const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const fmtDate = (v) => v ? new Date(v).toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" }) : "Sin programar";
 const money = (v) => new Intl.NumberFormat("es-MX", { style:"currency", currency:"MXN" }).format(Number(v || 0));
@@ -40,14 +42,10 @@ async function api(url, options) {
   return data;
 }
 function loginView(error) {
-  app.innerHTML = '<main class="login-shell"><img class="official-logo" src="./assets/fieldconnect-official.jpg" alt="FieldConnect Group"><h1>FieldConnect <span>Group</span></h1><p class="muted">Operaciones de ingeniería de campo, conectadas.</p>' +
-    '<form id="login-form" class="panel login-panel"><h2>Iniciar sesión</h2>' +
-    '<label>Correo electrónico<input type="email" name="email" autocomplete="username" required placeholder="usuario@empresa.com"></label>' +
-    '<label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label>' +
-    '<button class="primary" type="submit">Entrar al sistema</button><p id="login-error" class="error" role="alert">' + esc(error || "") + '</p></form>' +
-    '<p class="tiny">Plataforma de gestión operativa · Acceso autorizado</p></main>';
+ app.innerHTML=`<main class="login-page"><section class="login-story"><div class="login-brand"><img class="official-logo" src="./assets/fieldconnect-official.png" alt="FieldConnect Group"><span>FieldConnect<br><small>GROUP</small></span></div><div class="story-copy"><div class="eyebrow">Operaciones de ingeniería de campo</div><h1>Tu operación.<br><span>En conexión.</span></h1><p>Personas, servicios y resultados en un solo centro de control.</p><div class="story-flow"><span>Coordina</span><span>Supervisa</span><span>Resuelve</span></div></div><p class="story-footer">Conectando tecnología en todas partes.</p></section><section class="login-side"><form id="login-form" class="panel login-panel"><div class="eyebrow">Bienvenido a FieldConnect</div><h2>Centro de operaciones</h2><p class="login-description">Inicia sesión con tu cuenta de Administrador o Directivo.</p><label>Correo electrónico<input type="email" name="email" autocomplete="username" required placeholder="usuario@empresa.com"></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label><button class="primary" type="submit">Entrar a la plataforma <span aria-hidden="true">→</span></button><p id="login-error" class="error" role="alert">${esc(error||'')}</p><p class="login-note">Acceso autorizado · FieldConnect Group</p></form></section></main>`;
 }
 function logout(showMessage) {
+  state.view="services";state.analyticsData=null;state.analyticsRequest++;
   state.token = "";
   state.user = null;
   localStorage.removeItem("fc_token");
@@ -88,7 +86,7 @@ function card(t) {
     '<h3>' + esc(t.client) + ' — ' + esc(t.service_type) + '</h3><p><strong>' + esc(t.project) + '</strong> · SITE ID: ' + esc(t.site_id) + '</p>' +
     '<p>Folio de entrada: '+esc(t.access_folio||'No indicado')+'</p><p>' + esc(t.site_name) + ' · ' + esc(t.region) + '</p><p>Programado: ' + esc(fmtDate(t.scheduled_at)) + '</p><p>' +
     pill(t.status, false) + ' ' + pill(t.logistics_status, true) + '</p><p>Apoyo: ' + esc(t.logistics_owner_name || "Sin asignar") +
-    ' · IDC: ' + esc(t.idc_owner_name || "Sin asignar") + '</p></div><div class="ticket-actions">' + actions + '</div></article>';
+    ' · IDC: ' + esc(t.idc_owner_name || "Sin asignar") + '</p><p class="coverage-note">Cobertura IDC: '+esc(coverageText(t.idc_coverage_states))+'</p>'+(t.status==='completed'?'<p class="satisfaction-tag">Satisfacción: '+esc(SATISFACTION[t.satisfaction]||'Sin evaluar')+'</p>':'')+'</div><div class="ticket-actions">' + actions + '</div></article>';
 }
 function renderDashboard() {
   const u = state.user;
@@ -100,16 +98,17 @@ function renderDashboard() {
     done:list.filter((t) => t.status === "completed").length
   };
   const title = u.role === "admin" ? "Panel administrativo" : "Centro de control ejecutivo";
-  app.innerHTML = '<div class="app-shell"><header class="topbar"><div class="brand"><img class="official-logo nav-logo" src="./assets/fieldconnect-official.jpg" alt="Logo oficial">FieldConnect <span>Group</span></div>' +
+  app.innerHTML = '<div class="app-shell"><header class="topbar"><div class="brand"><img class="official-logo nav-logo" src="./assets/fieldconnect-official.png" alt="Logo oficial">FieldConnect <span>Group</span></div>' +
     '<div class="user-box"><div class="avatar">' + esc((u.name || "U").slice(0,1).toUpperCase()) + '</div><div><div class="user-name">' + esc(u.name) +
     '</div><div class="role-tag">' + esc(ROLE[u.role]) + '</div></div><button class="quiet" data-act="password">Contraseña</button><button class="quiet" id="logout">Salir</button></div></header><main class="layout">' +
+    '<nav class="workspace-tabs" aria-label="Secciones"><button data-act="services" aria-pressed="'+(state.view==='services')+'">Tickets y operación</button><button data-act="analytics" aria-pressed="'+(state.view==='analytics')+'">Analítica y reportes</button></nav><div id="workspace-main">'+
     '<div class="heading-row"><div><div class="eyebrow">Centro de operaciones</div><h1>' + title + '</h1><p>' +
     (u.role === "admin" ? "Supervisa tickets, responsables y avance de los servicios." :
       "Supervisa responsables, avance y resultados de los servicios.") + '</p></div>' +
-    (canManage() ? '<div class="toolbar"><button class="secondary" data-act="catalogs">Directorio y empresas</button><button class="primary" id="new-ticket">＋ Crear ticket</button></div>' : '') + '</div>' +
+    (canManage() ? '<div class="toolbar"><button class="secondary" data-act="catalogs">Directorio y cobertura</button><button class="primary" id="new-ticket">＋ Crear ticket</button></div>' : '') + '</div>' +
     '<section class="stats"><div class="stat"><div class="stat-label">Servicios activos</div><div class="stat-value">' + counts.open +
-    '</div><div class="stat-note">Pendientes o en ejecución</div></div><div class="stat"><div class="stat-label">Listos para IDC</div><div class="stat-value">' + counts.ready +
-    '</div><div class="stat-note">Liberados por logística</div></div><div class="stat"><div class="stat-label">En ejecución / espera</div><div class="stat-value">' + counts.active +
+    '</div><div class="stat-note">Pendientes o en ejecución</div></div><div class="stat"><div class="stat-label">Listos para iniciar</div><div class="stat-value">' + counts.ready +
+    '</div><div class="stat-note">Coordinación completada</div></div><div class="stat"><div class="stat-label">En ejecución / espera</div><div class="stat-value">' + counts.active +
     '</div><div class="stat-note">Requieren seguimiento</div></div><div class="stat"><div class="stat-label">Completados</div><div class="stat-value">' + counts.done +
     '</div><div class="stat-note">En el conjunto visible</div></div></section><section><h2 class="section-title">Servicios y tickets</h2>' +
     '<div class="toolbar"><input id="search" type="search" placeholder="Buscar folio, cliente, proyecto o SITE ID…" value="' + esc(state.query) + '">' +
@@ -117,7 +116,8 @@ function renderDashboard() {
       '<option value="' + k + '"' + (state.filter === k ? ' selected' : '') + '>' + STATUS[k] + '</option>').join("") +
     '</select><button class="secondary" id="refresh">Actualizar</button></div><div class="ticket-list">' +
     (list.length ? list.map(card).join("") : '<div class="empty"><strong>No hay tickets para mostrar</strong><p>Cambia los filtros o actualiza la lista.</p></div>') +
-    '</div></section></main></div>';
+    '</div></section></div></main><footer class="site-footer">FieldConnect Group · Conectando tecnología en todas partes</footer></div>';
+  if(state.view==='analytics')showAnalytics();
 }
 async function refresh() {
   try { await loadTickets(); renderDashboard(); }
@@ -137,12 +137,12 @@ function showModal(title, html) {
 }
 async function createTicketModal() {
   let catalogs;
-  try { catalogs=await api("/api/catalogs"); } catch(err) { return toast(err.message,true); }
-  const select=(name,label,rows)=>'<label>'+label+' *<select name="'+name+'" required><option value="">Selecciona del catálogo</option>'+rows.filter(x=>x.active).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')+'</select></label>';
+  try { catalogs=await api("/api/catalogs");state.catalogs=catalogs; } catch(err) { return toast(err.message,true); }
+  const select=(name,label,rows)=>'<label>'+label+' *<select name="'+name+'" required><option value="">Selecciona del catálogo</option>'+rows.filter(x=>x.active).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name+(x.kind==='idc'?' — '+coverageText(x.coverage_states):''))+'</option>').join('')+'</select></label>';
 
   showModal("Crear servicio / ticket", '<form id="ticket-form"><div class="form-grid">' +
-    select("company_id","Empresa",catalogs.companies)+'<label>ID de acceso / folio de entrada *<input name="access_folio" required></label><label>Proyecto *<input name="project" required></label>' +
-    '<label>SITE ID<input value="Se genera al guardar" readonly><small>Consecutivo automático por empresa</small></label>'+select("logistics_owner","Ing. de base de proyecto / apoyo",catalogs.employees.filter(x=>x.kind==="logistics"))+select("idc_owner","IDC asignado",catalogs.employees.filter(x=>x.kind==="idc"))+'<label>Tipo de servicio *<input name="service_type" required></label>' +
+    '<label>Empresa *<input name="client" required maxlength="200" placeholder="Escribe el nombre de la empresa" autocomplete="organization"></label><label>ID de acceso / folio de entrada *<input name="access_folio" required></label><label>Proyecto *<input name="project" required></label>' +
+    '<label>SITE ID<input value="Se genera al guardar" readonly><small>Consecutivo automático por empresa</small></label>'+select("logistics_owner","Ing. de base de proyecto / apoyo",catalogs.employees.filter(x=>x.kind==="logistics"))+select("idc_owner","IDC asignado y cobertura",catalogs.employees.filter(x=>x.kind==="idc"))+'<p class="span-2 coverage-hint" id="ticket-coverage">Selecciona un IDC para consultar sus estados de cobertura.</p><label>Estado del servicio *<select name="service_state" required><option value="">Selecciona un estado de México</option>'+catalogs.states.map(x=>'<option>'+esc(x.name)+'</option>').join('')+'</select></label><label>Tipo de servicio *<input name="service_type" required></label>' +
     '<label>Nombre del sitio *<input name="site_name" required></label><label>Ciudad o región *<input name="region" required></label>' +
     '<label class="span-2">Domicilio operativo *<input name="address" required></label><label>Contacto<input name="contact_name"></label>' +
     '<label>Teléfono<input name="contact_phone"></label><label>Fecha y hora programada<input type="datetime-local" name="scheduled_at"></label>' +
@@ -173,6 +173,7 @@ function renderDetail(d) {
   let html = '<div class="heading-row"><div><h2>' + esc(t.client) + ' — ' + esc(t.service_type) + '</h2><p>' + esc(t.project) + ' · SITE ID ' + esc(t.site_id) + '</p></div><div>' +
     pill(t.status, false) + ' ' + pill(t.logistics_status, true) + '</div></div><div class="detail-grid">' +
     detailItem("Sitio / región", t.site_name + " · " + t.region) + detailItem("Domicilio", t.address) +
+    detailItem("Estado del servicio",t.service_state||"Sin estado registrado")+detailItem("Estados de cobertura del IDC",coverageText(t.idc_coverage_states))+
     detailItem("Programación", fmtDate(t.scheduled_at)) + detailItem("Prioridad", PRIORITY[t.priority] || t.priority) +
     detailItem("ID de acceso / folio de entrada",t.access_folio || "No indicado")+detailItem("Ing. de base de proyecto / apoyo", t.logistics_owner_name || "Sin asignar") + detailItem("IDC asignado", t.idc_owner_name || "Sin asignar") +
     detailItem("Contacto", (t.contact_name || "No indicado") + " · " + (t.contact_phone || "")) +
@@ -200,8 +201,9 @@ function renderDetail(d) {
     html += '</div><form id="evidence-form" class="form-grid"><label>Nombre de evidencia<input name="label" required></label>' +
       '<label>URL de evidencia<input type="url" name="url" placeholder="https://…" required></label><div class="span-2"><button class="secondary" type="submit">Agregar evidencia por URL</button></div></form>' +
       '<div class="divider"></div><form id="result-form"><label>Resultado del servicio<textarea name="result" required>' + esc(t.result || "") +
-      '</textarea></label><button class="primary" type="submit">Finalizar servicio</button><p class="tiny">El cierre exige los seis puntos del checklist, resultado escrito y al menos una evidencia.</p><p class="error" id="close-error"></p></form></div>';
+      '</textarea></label>'+satisfactionFields(t.satisfaction,t.satisfaction_notes,'satisfaction_notes')+'<button class="primary" type="submit">Finalizar servicio</button><p class="tiny">El cierre exige los seis puntos del checklist, resultado escrito y al menos una evidencia. Puedes registrar la satisfacción después.</p><p class="error" id="close-error"></p></form></div>';
   }
+  if(t.status==='completed')html+='<section class="detail-section"><h3 class="section-title">Resultado y satisfacción del cliente</h3>'+detailItem("Resultado del servicio",t.result||"Sin resultado registrado")+'<form id="satisfaction-form">'+satisfactionFields(t.satisfaction,t.satisfaction_notes,'notes')+'<button class="secondary">Guardar evaluación</button><p class="error" id="satisfaction-error" role="alert"></p></form></section>';
   if (canNote) html += '<div class="detail-section"><h3 class="section-title">Agregar nota o incidencia</h3><form id="note-form" class="form-grid">' +
     '<label>Tipo<select name="note_type"><option value="note">Nota técnica</option><option value="incident">Incidencia</option><option value="blocker">Bloqueo</option></select></label>' +
     '<label class="span-2">Descripción<textarea name="body" maxlength="5000" required></textarea></label><div class="span-2"><button class="secondary" type="submit">Guardar registro</button></div></form></div>';
@@ -218,13 +220,23 @@ function renderDetail(d) {
 function detailItem(label, value) {
   return '<div class="detail-item"><small>' + esc(label) + '</small><strong>' + esc(value == null ? "" : value) + '</strong></div>';
 }
+function stateCheckboxes(states,selected=[]) {
+ return '<div class="state-checkboxes">'+states.map(x=>'<label><input type="checkbox" name="coverage_states" value="'+esc(x.name)+'"'+(selected.includes(x.name)?' checked':'')+'>'+esc(x.name)+'</label>').join('')+'</div>';
+}
+function satisfactionFields(value,notes,notesName) {
+ return '<label>Satisfacción del cliente<select name="satisfaction"><option value="">Sin evaluar</option>'+Object.entries(SATISFACTION).map(([k,v])=>'<option value="'+k+'"'+(k===value?' selected':'')+'>'+v+'</option>').join('')+'</select></label><label>Observaciones de la evaluación<textarea name="'+notesName+'" maxlength="2000" placeholder="Registra la opinión recibida del cliente">'+esc(notes||'')+'</textarea></label>';
+}
 async function showCatalogs() {
-  try {
-    const d=await api("/api/catalogs");
-    showModal("Directorio interno y empresas",'<p>Ingeniería de apoyo e IDC se asignan a los tickets sin cuenta de acceso.</p><h3>Empresas</h3>'+d.companies.map(x=>'<p>'+esc(x.name)+'</p>').join('')+
-      '<form id="company-form"><label>Nombre de empresa<input name="name" required maxlength="200"></label><button class="secondary">Agregar empresa</button></form><h3>Personal</h3>'+d.employees.map(x=>'<div class="catalog-row"><span><strong>'+esc(x.name)+'</strong> · '+(x.kind==="logistics"?'Ing. de apoyo':'IDC')+' · '+esc(x.email)+'</span><button class="quiet" data-act="toggle-employee" data-id="'+esc(x.id)+'" data-active="'+x.active+'">'+(x.active?'Desactivar':'Activar')+'</button></div>').join('')+
-      '<form id="employee-form" class="form-grid"><label>Nombre<input name="name" required maxlength="200"></label><label>Tipo<select name="kind"><option value="logistics">Ingeniero de apoyo</option><option value="idc">IDC</option></select></label><label>Correo de contacto<input name="email" type="email"></label><label>Teléfono<input name="phone"></label><div class="span-2"><button class="secondary">Agregar persona</button></div></form><p class="error" id="catalog-error" role="alert"></p>');
-  } catch(err) { toast(err.message,true); }
+ try {
+  const d=await api('/api/catalogs');state.catalogs=d;
+  showModal('Directorio y cobertura',
+   '<p class="muted">Los ingenieros de apoyo e IDC se asignan a los tickets sin cuenta de acceso. La empresa se escribe directamente al crear el servicio.</p><div class="catalog-heading"><h3>Personal interno</h3><span class="pill">'+d.employees.length+' personas</span></div>'+d.employees.map(x=>'<div class="catalog-row"><div><strong>'+esc(x.name)+'</strong><p>'+ (x.kind==='logistics'?'Ingeniería de apoyo':'Ingeniería de campo · IDC')+' · '+esc(x.email||'Sin correo')+'</p>'+(x.kind==='idc'?'<p class="coverage-note">Cobertura: '+esc(coverageText(x.coverage_states))+'</p>':'')+'</div><div class="row-actions">'+(x.kind==='idc'?'<button class="secondary" data-act="edit-coverage" data-id="'+esc(x.id)+'">Editar cobertura</button>':'')+'<button class="quiet" data-act="toggle-employee" data-id="'+esc(x.id)+'" data-active="'+x.active+'">'+(x.active?'Desactivar':'Activar')+'</button></div></div>').join('')+
+   '<section class="detail-section"><h3>Agregar persona</h3><form id="employee-form" class="form-grid"><label>Nombre<input name="name" required maxlength="200"></label><label>Tipo<select name="kind"><option value="logistics">Ingeniero de apoyo</option><option value="idc">IDC</option></select></label><label>Correo de contacto<input name="email" type="email"></label><label>Teléfono<input name="phone"></label><fieldset class="span-2 coverage-fieldset" id="employee-coverage" hidden><legend>Estados de cobertura del IDC</legend><p class="tiny">Selecciona al menos un estado. Puedes elegir varios.</p>'+stateCheckboxes(d.states)+'</fieldset><div class="span-2"><button class="primary">Agregar persona</button></div></form><p class="error" id="catalog-error" role="alert"></p></section>');
+ }catch(err){toast(err.message,true);}
+}
+function editCoverage(id){
+ const d=state.catalogs,e=d?.employees.find(e=>String(e.id)===String(id));if(!e)return;
+ const dialog=showModal('Cobertura de '+e.name,'<form id="coverage-form"><p>Selecciona los estados de México que cubre este IDC.</p>'+stateCheckboxes(d.states,e.coverage_states)+'<p class="error" id="coverage-error" role="alert"></p><div class="form-actions"><button type="button" class="quiet" data-act="catalogs">Volver al directorio</button><button class="primary">Guardar cobertura</button></div></form>');dialog.dataset.employeeId=e.id;
 }
 async function sendAction(id, action, body) {
   const endpoints = { release:"/release" };
@@ -267,13 +279,26 @@ document.addEventListener("submit", async (e) => {
       const error = document.getElementById("login-error");
       if (error) error.textContent = err.message;
     }
+  } else if (form.id === "analytics-form") {
+    const q=formObject(form);if(q.period!=='custom'){delete q.from;delete q.to;}if(!q.group)delete q.group;
+    await loadAnalytics(q);
+  } else if (form.id === "coverage-form") {
+    const id=document.getElementById('modal-backdrop').dataset.employeeId;
+    const coverage_states=new FormData(form).getAll('coverage_states');
+    try{await api('/api/employees/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({coverage_states})});await loadTickets();renderDashboard();await showCatalogs();toast('Cobertura actualizada.');}
+    catch(err){document.getElementById('coverage-error').textContent=err.message;}
+  } else if (form.id === "satisfaction-form") {
+    const id=document.getElementById('modal-backdrop').dataset.ticketId,body=formObject(form);body.satisfaction=body.satisfaction||null;
+    try{const r=await api('/api/tickets/'+encodeURIComponent(id)+'/satisfaction',{method:'PUT',body:JSON.stringify(body)});await loadTickets();renderDashboard();await openDetail(id);toast(r.message);}
+    catch(err){document.getElementById('satisfaction-error').textContent=err.message;}
   } else if (form.id === "password-form") {
     const data=formObject(form);
     if(data.new_password!==data.confirm_password) { document.getElementById("password-error").textContent="Las contraseñas no coinciden.";return; }
     try { const r=await api("/api/auth/password",{method:"POST",body:JSON.stringify(data)});document.getElementById("modal-backdrop")?.remove();logout(false);toast(r.message); }
     catch(err){document.getElementById("password-error").textContent=err.message;}
   } else if (["employee-form","company-form"].includes(form.id)) {
-    try { await api(form.id==="company-form"?"/api/companies":"/api/employees",{method:"POST",body:JSON.stringify(formObject(form))}); await showCatalogs(); toast("Catálogo actualizado."); }
+    const body=formObject(form);if(form.id==='employee-form')body.coverage_states=body.kind==='idc'?new FormData(form).getAll('coverage_states'):[];
+    try { await api(form.id==="company-form"?"/api/companies":"/api/employees",{method:"POST",body:JSON.stringify(body)}); await showCatalogs(); toast("Catálogo actualizado."); }
     catch(err) { const error=document.getElementById("catalog-error"); if(error)error.textContent=err.message; }
   } else if (form.id === "ticket-form") {
     const data = formObject(form);
@@ -320,7 +345,7 @@ document.addEventListener("submit", async (e) => {
     const resultText = new FormData(form).get("result");
     try {
       const result = await api("/api/tickets/" + encodeURIComponent(id) + "/status", {
-        method:"POST", body:JSON.stringify({ status:"completed", result:resultText })
+        method:"POST", body:JSON.stringify({ status:"completed", result:resultText,satisfaction:new FormData(form).get('satisfaction')||null,satisfaction_notes:new FormData(form).get('satisfaction_notes')||'' })
       });
       toast(result.message);
       if (modal) modal.remove();
@@ -340,6 +365,9 @@ document.addEventListener("click", async (e) => {
   if (button.id === "refresh") return refresh();
   const act = button.dataset.act;
   const id = button.dataset.id;
+  if(act==='services'||act==='analytics'){state.view=act;state.analyticsRequest++;renderDashboard();return;}
+  if(act==='analytics-csv')return exportAnalyticsCsv();
+  if(act==='edit-coverage')return editCoverage(id);
   if (act === "catalogs") return showCatalogs();
   if (act === "password") return showModal("Cambiar contraseña",'<form id="password-form"><label>Contraseña actual<input type="password" name="current_password" autocomplete="current-password" required></label><label>Contraseña nueva<input type="password" name="new_password" minlength="12" maxlength="72" autocomplete="new-password" required></label><label>Confirmar contraseña nueva<input type="password" name="confirm_password" minlength="12" maxlength="72" autocomplete="new-password" required></label><p class="tiny">Usa al menos 12 caracteres. Se cerrarán las sesiones anteriores.</p><p class="error" id="password-error" role="alert"></p><button class="primary">Guardar contraseña</button></form>');
   if (act === "toggle-employee") { try { await api("/api/employees/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({active:button.dataset.active!=="true"})}); await showCatalogs(); } catch(err) { toast(err.message,true); } return; }
@@ -369,6 +397,13 @@ document.addEventListener("click", async (e) => {
 });
 
 document.addEventListener("change", async (e) => {
+  if(e.target.id==='analytics-period'){
+    const custom=e.target.value==='custom';document.querySelectorAll('.custom-date').forEach(label=>{label.hidden=!custom;label.querySelector('input').required=custom;});return;
+  }
+  if(e.target.name==='kind'&&e.target.form?.id==='employee-form'){document.getElementById('employee-coverage').hidden=e.target.value!=='idc';return;}
+  if(e.target.name==='idc_owner'&&e.target.form?.id==='ticket-form'){
+    const x=state.catalogs?.employees.find(x=>String(x.id)===e.target.value);document.getElementById('ticket-coverage').textContent=x?'Estados de cobertura: '+coverageText(x.coverage_states):'Selecciona un IDC para consultar sus estados de cobertura.';return;
+  }
   if (e.target && e.target.id === "status-filter") {
     state.filter = e.target.value;
     await refresh();

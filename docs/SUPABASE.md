@@ -26,6 +26,20 @@ La función comprueba su propio token JWT y vuelve a consultar en cada petición
 
 El SITE ID se genera atómicamente por empresa (`000001`, `000002`, etc.). La combinación empresa/SITE ID es única y queda fija. El folio global del ticket es independiente. El ID de acceso / folio de entrada lo captura el usuario.
 
+## Cobertura y reportes
+
+`mexico_states` contiene las 32 entidades federativas. `employee_coverage` relaciona un IDC con uno o varios estados, sin darle acceso al sistema. El directorio permite modificar esa cobertura. Los ejemplos de cobertura se asignan únicamente al personal ficticio del seed; un registro anterior sin datos muestra “Cobertura por definir”.
+
+La empresa se escribe en el formulario. La API busca su nombre normalizado (espacios y mayúsculas) dentro de la misma transacción que crea el ticket y registra una empresa nueva si hace falta. Un bloqueo de transacción impide duplicarla durante altas simultáneas por la API.
+
+`GET /api/analytics` agrega todos los registros del periodo, independientemente del límite de la lista de tickets. Acepta `period=week|month|custom|all`, `from` y `to` para un rango personalizado y `group=day|week|month` opcional. Las fechas usan Ciudad de México y la fecha final se incluye completa. El máximo por consulta es diez años.
+
+`PUT /api/tickets/:id/satisfaction` guarda o actualiza la evaluación de un ticket completado y registra un evento de auditoría. Los estados disponibles son `satisfied`, `neutral`, `unsatisfied` y `null` (sin evaluación). Al completar el servicio también se puede enviar `satisfaction` y `satisfaction_notes`.
+
+Los índices de `created_at` y `closed_at` apoyan los reportes. `src/migration-analytics.sql` conserva los tickets históricos y deja sin estado o evaluación los datos que no se hayan registrado. No infiere satisfacción a partir de un cierre.
+
+El PNG oficial recibido se conserva sin alterar; su fondo cuadriculado está integrado en los píxeles del archivo y no es transparencia real. Los colores de interfaz corresponden a la paleta corporativa solicitada.
+
 ## Publicación y mantenimiento
 
 Un cambio en `main` ejecuta las pruebas y publica `public/` en GitHub Pages. `npm run build:web` prepara ese sitio en `dist/` y sincroniza la entrada de la raíz para que la publicación desde una rama también muestre la aplicación conectada.

@@ -5,6 +5,14 @@ const path=require('node:path');
 const {PGlite}=require('@electric-sql/pglite');
 const sql=name=>fs.readFileSync(path.join(__dirname,'..','src',name),'utf8');
 const {schemaBundle}=require('../src/database-schema');
+const {resolvePeriod}=require('../src/analytics');
+
+test('report dates use Mexico City calendar weeks and validate custom ranges',()=>{
+  assert.deepEqual(resolvePeriod({period:'week'},new Date('2026-11-30T05:30:00Z')),{period:'week',from:'2026-11-23',to:'2026-11-29',group:'day',timezone:'America/Mexico_City'});
+  assert.equal(resolvePeriod({period:'month'},new Date('2024-02-29T18:00:00Z')).to,'2024-02-29');
+  assert.throws(()=>resolvePeriod({period:'custom',from:'2026-02-29',to:'2026-03-01'}));
+  assert.throws(()=>resolvePeriod({period:'custom',from:'2026-11-30',to:'2026-11-01'}));
+});
 
 test('isolated schema preserves existing public tables and generates tracking',async()=>{
   const db=new PGlite();
@@ -38,8 +46,8 @@ test('migration, catalogs, tracking and the two authorized logins',async t=>{
     (30,'IDC anterior','field@example.com','unused','idc');
     INSERT INTO tickets(folio,client,project,site_id,service_type,site_name,region,address,scope,logistics_owner,idc_owner)
     VALUES('OLD-001','Empresa anterior','Proyecto','000041','Servicio','Sitio','Colima','Domicilio','Alcance',20,30);`);
-  await db.exec(sql('migration-v2.sql')); await db.exec(sql('migration-web.sql'));
-  await db.exec(sql('migration-v2.sql')); await db.exec(sql('migration-web.sql'));
+  await db.exec(sql('migration-v2.sql')); await db.exec(sql('migration-web.sql')); await db.exec(sql('migration-analytics.sql'));
+  await db.exec(sql('migration-v2.sql')); await db.exec(sql('migration-web.sql')); await db.exec(sql('migration-analytics.sql'));
   await t.test('migration preserves history, maps personnel and disables legacy accounts',async()=>{
     const old=(await db.query('SELECT t.site_id,a.name support,i.name field FROM tickets t JOIN employees a ON a.id=t.logistics_owner JOIN employees i ON i.id=t.idc_owner')).rows[0];
     assert.deepEqual(old,{site_id:'000041',support:'Apoyo anterior',field:'IDC anterior'});
@@ -111,6 +119,52 @@ test('migration, catalogs, tracking and the two authorized logins',async t=>{
       assert.equal((await api(route+'/status','POST',{status:'completed',result:'Conectividad validada'},director.token)).status,200);
       assert.equal((await api(route+'/status','POST',{status:'in_progress'},admin.token)).status,409);
       const detail=await api(route,'GET',null,admin.token);assert.equal(detail.ticket.progress,100);assert.ok(detail.events.length>=5);
+    });
+    await t.test('free-text company names share tracking across case/spacing and failed tickets leave no orphan',async()=>{
+      const a=await api('/api/tickets','POST',{...body,client:'  Empresa   Nueva  ',service_state:'Colima'},admin.token);assert.equal(a.status,201,a.error);assert.equal(a.ticket.client,'Empresa Nueva');assert.equal(a.ticket.site_id,'000001');
+      const b=await api('/api/tickets','POST',{...body,client:'empresa nueva',service_state:'Jalisco'},admin.token);assert.equal(b.status,201,b.error);assert.equal(b.ticket.company_id,a.ticket.company_id);assert.equal(b.ticket.site_id,'000002');
+      const failed=await api('/api/tickets','POST',{...body,client:'No debe persistir',logistics_owner:field.id},admin.token);assert.equal(failed.status,400);
+      assert.equal((await db.query("SELECT count(*)::int n FROM companies WHERE name='No debe persistir'")).rows[0].n,0);
+    });
+    await t.test('IDC coverage accepts only Mexican states and edits preserve prior coverage on failure',async()=>{
+      assert.equal(catalogs.states.length,32);
+      assert.equal((await api('/api/employees','POST',{name:'IDC sin zona',kind:'idc'},admin.token)).status,400);
+      const person=await api('/api/employees','POST',{name:'IDC de prueba',kind:'idc',coverage_states:['Colima','Jalisco']},admin.token);assert.equal(person.status,201,person.error);
+      const url='/api/employees/'+person.employee.id;
+      assert.equal((await api(url,'PATCH',{coverage_states:['Michoacán']},admin.token)).status,200);
+      assert.equal((await api(url,'PATCH',{coverage_states:['Estado inventado']},admin.token)).status,400);
+      const updated=await api('/api/catalogs','GET',null,director.token);
+      assert.deepEqual(updated.employees.find(e=>e.id===person.employee.id).coverage_states,['Michoacán']);
+      assert.equal((await api(url,'PATCH',{coverage_states:[]},admin.token)).status,400);
+    });
+    await t.test('analytics uses all matching tickets, inclusive Mexico dates and distinct closure/evaluation cohorts',async()=>{
+      assert.equal((await api('/api/analytics')).status,401);
+      const fixture=[
+        ['2001-01-02T06:00:00Z','2001-01-03T18:00:00Z','satisfied'],
+        ['2000-12-31T06:00:00Z','2001-01-03T06:00:00Z','unsatisfied'],
+        ['2001-01-03T05:59:59Z',null,null],
+        ['2001-01-04T06:00:00Z',null,null],
+        ['2001-01-02T05:59:59Z',null,null],
+        ['2001-01-03T06:00:00Z','2001-01-04T05:59:59Z',null]
+      ];
+      const ids=[];
+      for(const [created,closed,satisfaction] of fixture){
+        const made=await api('/api/tickets','POST',{...body,client:'Empresa analítica',service_type:'Cableado',service_state:'Colima'},admin.token);assert.equal(made.status,201,made.error);ids.push(made.ticket.id);
+        await db.query("UPDATE tickets SET created_at=$1,closed_at=$2,satisfaction=$3,status=$4 WHERE id=$5",[created,closed,satisfaction,closed?'completed':'assigned',made.ticket.id]);
+      }
+      let d=await api('/api/analytics?period=custom&from=2001-01-02&to=2001-01-03','GET',null,director.token);assert.equal(d.status,200,d.error);
+      assert.equal(d.summary.created,3);assert.equal(d.summary.closed,3);assert.equal(d.summary.open,1);assert.equal(d.summary.completion_rate,66.7);
+      assert.equal(d.summary.satisfied,1);assert.equal(d.summary.unsatisfied,1);assert.equal(d.summary.unrated,1);assert.equal(d.summary.satisfaction_rate,50);assert.equal(d.summary.avg_resolution_hours,44);
+      assert.equal(d.trend.reduce((sum,x)=>sum+x.created,0),3);assert.equal(d.trend.reduce((sum,x)=>sum+x.closed,0),3);
+      assert.equal(d.types[0].label,'Cableado');assert.equal(d.states[0].label,'Colima');assert.equal(d.statuses.reduce((sum,x)=>sum+x.total,0),3);
+      assert.equal((await api('/api/tickets/'+ids[2]+'/satisfaction','PUT',{satisfaction:'satisfied'},admin.token)).status,409);
+      assert.equal((await api('/api/tickets/'+ids[5]+'/satisfaction','PUT',{satisfaction:'neutral',notes:'Atención aceptable'},admin.token)).status,200);
+      d=await api('/api/analytics?period=custom&from=2001-01-02&to=2001-01-03','GET',null,admin.token);assert.equal(d.summary.evaluated,3);assert.equal(d.summary.satisfaction_rate,33.3);
+      const empty=await api('/api/analytics?period=custom&from=1999-01-01&to=1999-01-02','GET',null,admin.token);assert.equal(empty.summary.created,0);assert.equal(empty.summary.satisfaction_rate,null);assert.equal(empty.summary.avg_resolution_hours,null);
+      assert.equal((await api('/api/analytics?period=custom&from=2026-02-29&to=2026-03-01','GET',null,admin.token)).status,400);
+      await db.query("INSERT INTO tickets(folio,client,project,site_id,service_type,site_name,region,address,scope,company_id,access_folio,logistics_owner,idc_owner,created_at) SELECT 'BULK-'||n,'','BULK','','Cableado','Sitio','Colima','Domicilio','Alcance',$1,'ENT-BULK',$2,$3,'2002-01-02T18:00:00Z' FROM generate_series(1,305) n",[company.id,support.id,field.id]);
+      assert.equal((await api('/api/tickets?q=BULK','GET',null,admin.token)).tickets.length,300);
+      const bulk=await api('/api/analytics?period=custom&from=2002-01-02&to=2002-01-02','GET',null,admin.token);assert.equal(bulk.summary.created,305);
     });
     await t.test('changing a password invalidates previous sessions',async()=>{
       const changed=await api('/api/auth/password','POST',{current_password:password,new_password:'New-test-password-2026!'},director.token);

@@ -13,7 +13,8 @@ function schemaBundle(schema = databaseSchema()) {
   const migration = fs.readFileSync(path.join(__dirname,"migration-v2.sql"),"utf8")
     .replace("SET search_path=public", `SET search_path="${schema}"`);
   const web = fs.readFileSync(path.join(__dirname,"migration-web.sql"),"utf8");
-  return `BEGIN;\nCREATE SCHEMA IF NOT EXISTS "${schema}";\nSET LOCAL search_path TO "${schema}";\n${base}\n${migration}\n${web}\nCOMMIT;`;
+  const analytics = fs.readFileSync(path.join(__dirname,"migration-analytics.sql"),"utf8");
+  return `BEGIN;\nCREATE SCHEMA IF NOT EXISTS "${schema}";\nSET LOCAL search_path TO "${schema}";\n${base}\n${migration}\n${web}\n${analytics}\nCOMMIT;`;
 }
 
 module.exports = { databaseSchema, schemaBundle };
