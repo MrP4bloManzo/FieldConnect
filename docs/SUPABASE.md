@@ -28,7 +28,7 @@ El SITE ID se genera atómicamente por empresa (`000001`, `000002`, etc.). La co
 
 ## Publicación y mantenimiento
 
-Un cambio en `main` ejecuta las pruebas y publica `public/` en GitHub Pages. `npm run build:web` prepara ese sitio en `dist/`. El demo antiguo de la raíz del repositorio permanece separado de la aplicación publicada.
+Un cambio en `main` ejecuta las pruebas y publica `public/` en GitHub Pages. `npm run build:web` prepara ese sitio en `dist/` y sincroniza la entrada de la raíz para que la publicación desde una rama también muestre la aplicación conectada.
 
 Los controladores de API se comparten entre Express y Supabase:
 

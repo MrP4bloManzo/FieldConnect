@@ -30,4 +30,4 @@ El workflow de GitHub publica la interfaz al actualizar `main`. La API se despli
 
 Las tablas están en el esquema privado `fieldconnect`, con RLS habilitado. La API usa credenciales del entorno de Supabase y comprueba cuenta, rol y versión de sesión en cada petición. La interfaz no contiene secretos de base de datos. Se conservan intactas las tablas anteriores de `public`.
 
-El demo estático anterior permanece en la raíz del repositorio; usa datos locales del navegador y no es la aplicación publicada. Las evidencias se registran por URL; no hay carga de archivos binarios, MFA ni recuperación de contraseña por correo en esta versión.
+La raíz se sincroniza con `public/` al construir para que también funcione la publicación de Pages desde una rama. Las evidencias se registran por URL; no hay carga de archivos binarios, MFA ni recuperación de contraseña por correo en esta versión.

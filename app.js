@@ -1,383 +1,390 @@
 "use strict";
-const root=document.getElementById("app");
-const KEY="fieldconnect_demo_v1";
-const roles={superadmin:"Directivo",admin:"Administrador",logistics:"Ingeniería de apoyo",idc:"Ingeniero de campo"};
-const statusNames={available:"Disponible",assigned:"Asignado",in_progress:"En ejecución",on_hold:"En espera",completed:"Completado",cancelled:"Cancelado"};
-const logisticsNames={pending:"Pendiente",in_coordination:"En coordinación",ready:"Listo para IDC"};
-const priorityNames={low:"Baja",normal:"Normal",high:"Alta",urgent:"Urgente"};
-const checksText=["Se verificó el alcance solicitado","Se realizaron las actividades técnicas","Se validó el funcionamiento del servicio","Se documentaron las incidencias o su ausencia","Se registraron las evidencias correspondientes","Se informó el resultado al responsable"];
-const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const now=()=>new Date().toISOString();
-const date=v=>v?new Date(v).toLocaleString("es-MX",{dateStyle:"medium",timeStyle:"short"}):"Sin programar";
-const money=v=>new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN"}).format(Number(v||0));
-function seed(){return[
-{id:1,folio:"FC-20261018-001",client:"Telco México",project:"Modernización de red",site_id:"COL-0421",service_type:"Mantenimiento preventivo",site_name:"Nodo Colima Centro",region:"Colima, Colima",address:"Av. Tecnológico, Colima",contact_name:"Carlos Ramírez",contact_phone:"312 000 0000",scheduled_at:new Date(Date.now()+86400000).toISOString(),priority:"high",scope:"Inspección de gabinete, revisión de cableado, limpieza técnica y validación de conectividad.",activities:"Diagnóstico, inspección y pruebas",tools:"Laptop, OTDR, multímetro",materials:"Patch cords y conectores",prerequisites:"Acceso coordinado con NOC",technical_notes:"Confirmar ventana de mantenimiento",agreed_amount:6800,travel_expenses:850,other_expenses:0,payment_status:"pending",financial_notes:"Pago contra reporte",status:"available",logistics_status:"pending",created_by:"Demo Admin",logistics_owner:"",idc_owner:"",progress:0,result:"",checklist:[false,false,false,false,false,false],evidence:[],notes:[],events:[{type:"Ticket creado",actor:"Administración",at:now()}],created_at:now()},
-{id:2,folio:"FC-20261018-002",client:"Infraestructura del Pacífico",project:"Ampliación de cobertura",site_id:"MZO-0188",service_type:"Instalación",site_name:"Estación Manzanillo Norte",region:"Manzanillo, Colima",address:"Zona industrial, Manzanillo",contact_name:"Laura Gómez",contact_phone:"314 000 0000",scheduled_at:new Date(Date.now()+172800000).toISOString(),priority:"urgent",scope:"Instalación de equipo de transmisión y certificación de enlaces.",activities:"Montaje, conexión y pruebas",tools:"Kit de fibra, fusionadora, laptop",materials:"Jumpers ópticos y bridas",prerequisites:"Equipo recibido y acceso confirmado",technical_notes:"Requiere coordinación con centro de monitoreo",agreed_amount:12400,travel_expenses:1600,other_expenses:300,payment_status:"partial",financial_notes:"Anticipo registrado",status:"available",logistics_status:"ready",created_by:"Demo Admin",logistics_owner:"Andrea Torres",idc_owner:"",progress:0,result:"",checklist:[false,false,false,false,false,false],evidence:[],notes:[],events:[{type:"Ticket creado",actor:"Administración",at:now()},{type:"Coordinación completada",actor:"Andrea Torres",at:now()}],created_at:now()},
-{id:3,folio:"FC-20261017-003",client:"Redes del Occidente",project:"Auditoría de infraestructura",site_id:"VLL-0032",service_type:"Diagnóstico de red",site_name:"Site Villa de Álvarez",region:"Villa de Álvarez, Colima",address:"Zona centro, Villa de Álvarez",contact_name:"Miguel Santos",contact_phone:"312 000 0001",scheduled_at:new Date(Date.now()-3600000).toISOString(),priority:"normal",scope:"Diagnóstico de pérdida intermitente y reporte de causa raíz.",activities:"Medición y validación",tools:"Analizador, laptop",materials:"No requeridos",prerequisites:"Acceso autorizado",technical_notes:"Documentar mediciones",agreed_amount:4200,travel_expenses:300,other_expenses:0,payment_status:"paid",financial_notes:"Liquidado",status:"in_progress",logistics_status:"ready",created_by:"Demo Admin",logistics_owner:"Andrea Torres",idc_owner:"Manuel Díaz",progress:65,result:"",checklist:[true,true,false,false,false,false],evidence:[],notes:[{type:"note",body:"Se detectó variación en potencia óptica. Continúa el diagnóstico.",author:"Manuel Díaz",at:now()}],events:[{type:"Servicio reservado",actor:"Manuel Díaz",at:now()},{type:"Ejecución iniciada",actor:"Manuel Díaz",at:now()}],created_at:now()},
-{id:4,folio:"FC-20261016-004",client:"Telco México",project:"Continuidad operativa",site_id:"ARM-0077",service_type:"Correctivo",site_name:"Nodo Armería",region:"Armería, Colima",address:"Carretera principal, Armería",contact_name:"Sofía Pérez",contact_phone:"313 000 0002",scheduled_at:new Date(Date.now()-86400000).toISOString(),priority:"high",scope:"Revisión de alimentación y restablecimiento del equipo.",activities:"Diagnóstico eléctrico y pruebas",tools:"Multímetro y equipo de seguridad",materials:"Fusibles",prerequisites:"Permiso de acceso",technical_notes:"Reporte fotográfico requerido",agreed_amount:5100,travel_expenses:500,other_expenses:0,payment_status:"paid",financial_notes:"Pagado",status:"completed",logistics_status:"ready",created_by:"Demo Admin",logistics_owner:"Andrea Torres",idc_owner:"Manuel Díaz",progress:100,result:"Alimentación restablecida. Pruebas de conectividad satisfactorias.",checklist:[true,true,true,true,true,true],evidence:[{label:"Reporte técnico de ejemplo",url:"https://example.com",by:"Manuel Díaz",at:now()}],notes:[],events:[{type:"Ticket creado",actor:"Administración",at:now()},{type:"Servicio completado",actor:"Manuel Díaz",at:now()}],created_at:now()}
-]}
-let data;try{data=normalizeTickets(JSON.parse(localStorage.getItem(KEY)))}catch{data=seed()}
-let user=null,filter="",query="",priorityFilter="",regionFilter="",sortBy="scheduled",modalTicket=null,view="services";
-const TEAM_KEY="fieldconnect_team_v1";
-function seedTeam(){return [{id:"emp-1",name:"Manzo",role:"superadmin",area:"Dirección",email:"manzo@fieldconnect.demo",phone:"",status:"active"},{id:"emp-2",name:"Demo Admin",role:"admin",area:"Administración",email:"admin@fieldconnect.demo",phone:"",status:"active"},{id:"emp-3",name:"Andrea Torres",role:"logistics",area:"Ingeniería de apoyo",email:"andrea@fieldconnect.demo",phone:"",status:"active"},{id:"emp-4",name:"Manuel Díaz",role:"idc",area:"Ingeniería de campo",email:"manuel@fieldconnect.demo",phone:"",status:"active"},{id:"emp-5",name:"Lucía Herrera",role:"idc",area:"Ingeniería de campo",email:"lucia@fieldconnect.demo",phone:"",status:"active"}]}
-let team;try{team=JSON.parse(localStorage.getItem(TEAM_KEY));if(!Array.isArray(team))team=seedTeam()}catch{team=seedTeam()}
-function saveTeam(){try{localStorage.setItem(TEAM_KEY,JSON.stringify(team))}catch{toast("No se pudo guardar el directorio local.",true)}}
-function save(){localStorage.setItem(KEY,JSON.stringify(data))}
-function toast(msg,bad=false){const n=document.createElement("div");n.className="toast"+(bad?" bad":"");n.setAttribute("role",bad?"alert":"status");n.textContent=msg;document.body.appendChild(n);setTimeout(()=>n.remove(),3200)}
-function symbol(size=""){return '<img class="brand-logo '+esc(size)+'" src="./assets/fieldconnect-official.jpg" alt="FieldConnect Group" />'}
-const demoProfiles = [
-  { role: "superadmin", name: "Manzo", description: "Avance y equipo" },
-  { role: "admin", name: "Demo Admin", description: "Tickets y seguimiento" }
+
+const app = document.getElementById("app");
+const state = { token: localStorage.getItem("fc_token") || "", user: null, tickets: [], filter: "", query: "" };
+const CHECKLIST = [
+  "Se verificó el alcance solicitado",
+  "Se realizaron las actividades técnicas",
+  "Se validó el funcionamiento del servicio",
+  "Se documentaron incidencias o se indicó que no hubo",
+  "Se registraron las evidencias correspondientes",
+  "Se informó el resultado al responsable correspondiente"
 ];
+const STATUS = { available:"Disponible", assigned:"Asignado", in_progress:"En progreso", on_hold:"En espera", completed:"Completado", cancelled:"Cancelado" };
+const LOGISTICS = { pending:"Pendiente de coordinación", in_coordination:"En coordinación", ready:"Listo para asignación" };
+const ROLE = { admin:"Administrador", director:"Directivo" };
+const canManage = () => ["admin","director"].includes(state.user?.role);
+const PRIORITY = { low:"Baja", normal:"Normal", high:"Alta", urgent:"Urgente" };
+const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const fmtDate = (v) => v ? new Date(v).toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" }) : "Sin programar";
+const money = (v) => new Intl.NumberFormat("es-MX", { style:"currency", currency:"MXN" }).format(Number(v || 0));
 
-function login() {
-  root.innerHTML = `<main class="login-page">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="brand">${symbol("small")}<div class="brand-name">FieldConnect <span>Group</span></div></div>
-      <div class="hero-copy">
-        <div class="eyebrow">Ingeniería de campo</div>
-        <h1 id="hero-title">Cada servicio,<br><span>bajo control.</span></h1>
-        <p>Coordina, ejecuta y documenta tus operaciones de campo en un solo lugar.</p>
-      </div>
-      <ol class="hero-flow"><li>Coordinación</li><li>Ejecución</li><li>Cierre</li></ol>
-    </section>
-    <section class="login-side">
-      <div class="login-card">
-        <span class="demo-label">Demo interactiva</span>
-        <h2>Centro de operaciones</h2>
-        <p>Elige un perfil para ver cómo trabaja cada equipo.</p>
-        <form id="login-form">
-          <fieldset class="profiles"><legend>Perfil de acceso</legend>
-            ${demoProfiles.map((profile, index) => `<label class="profile-option">
-              <input type="radio" name="role" value="${profile.role}" ${index === 0 ? "checked" : ""}>
-              <span><strong>${roles[profile.role]}</strong><small>${profile.description}</small></span>
-            </label>`).join("")}
-          </fieldset>
-          <label class="field">Nombre de usuario<input id="demo-name" name="name" value="Manzo" required maxlength="60" autocomplete="off"></label>
-          <button class="primary" type="submit">Entrar a la plataforma <span aria-hidden="true">→</span></button>
-          <p class="error" id="login-error" role="status"></p>
-        </form>
-        <p class="local-note">Tus cambios de demostración se guardan en este navegador.</p>
-      </div>
-    </section>
-  </main>`;
+function toast(message, bad) {
+  const el = document.createElement("div");
+  el.className = "toast" + (bad ? " bad" : "");
+  el.textContent = message;
+  document.body.appendChild(el);
+  window.setTimeout(() => el.remove(), 3500);
 }
-
-function normalizeTickets(tickets) {
-  if (!Array.isArray(tickets)) throw new Error("El respaldo debe contener una lista de tickets.");
-  const ids = new Set();
-  return tickets.map(ticket => {
-    if (!ticket || !/^\d+$/.test(String(ticket.id)) || typeof ticket.folio !== "string" ||
-        !ticket.folio.trim() || typeof ticket.client !== "string" || !ticket.client.trim() ||
-        ids.has(String(ticket.id))) throw new Error("El respaldo contiene tickets inválidos o repetidos.");
-    ids.add(String(ticket.id));
-    const entries = key => Array.isArray(ticket[key]) ? ticket[key].filter(entry => entry && typeof entry === "object") : [];
-    return {
-      ...ticket,
-      region: typeof ticket.region === "string" ? ticket.region : "",
-      checklist: checksText.map((_, index) => ticket.checklist?.[index] === true),
-      evidence: entries("evidence").filter(entry => typeof entry.url === "string" && /^https?:\/\//i.test(entry.url)),
-      notes: entries("notes"),
-      events: entries("events")
-    };
-  });
+async function api(url, options) {
+  options = options || {};
+  const headers = Object.assign({ "Content-Type":"application/json" }, options.headers || {});
+  if (state.token) headers.Authorization = "Bearer " + state.token;
+  const response = await fetch((window.FIELDCONNECT_CONFIG?.apiBase || "") + url, Object.assign({}, options, { headers:headers }));
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 && url !== "/api/auth/login") {
+    logout(false);
+    throw new Error(data.error || "La sesión expiró.");
+  }
+  if (!response.ok) throw new Error(data.error || "No se pudo completar la operación.");
+  return data;
 }
-function pill(v,log=false){let label=log?logisticsNames[v]:statusNames[v]||priorityNames[v]||v;let c=["completed","ready"].includes(v)?"green":["assigned","in_progress"].includes(v)?"blue":["in_coordination","on_hold"].includes(v)?"amber":["cancelled","urgent"].includes(v)?"red":"";return '<span class="pill '+c+'">'+esc(label||v)+'</span>'}
-function canSeeTicket() { return ["admin","superadmin"].includes(user?.role); }
-
-const isOpen = ticket => !["completed", "cancelled"].includes(ticket.status);
-const isOverdue = ticket => ticket.scheduled_at && new Date(ticket.scheduled_at) < new Date() && isOpen(ticket);
-const searchable = value => String(value).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-const priorityOrder = { urgent: 0, high: 1, normal: 2, low: 3 };
-
-function visibleTickets(tickets = data.filter(canSeeTicket)) {
-  const searchTerm = searchable(query.trim());
-  return tickets.filter(ticket => {
-    const text = [ticket.folio, ticket.client, ticket.project, ticket.site_id, ticket.site_name,
-      ticket.region, ticket.access_folio, ticket.idc_owner, ticket.logistics_owner].join(" ");
-    const matchesStatus = filter === "__overdue" ? isOverdue(ticket) :
-      filter === "__mine" ? ticket.created_by === user.name :
-        !filter || ticket.status === filter;
-    return matchesStatus && searchable(text).includes(searchTerm) &&
-      (!priorityFilter || ticket.priority === priorityFilter) &&
-      (!regionFilter || ticket.region === regionFilter);
-  }).sort((a, b) => {
-    if (sortBy === "priority") return (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9);
-    if (sortBy === "client") return a.client.localeCompare(b.client, "es-MX");
-    const dateA = Date.parse(a.scheduled_at) || Infinity;
-    const dateB = Date.parse(b.scheduled_at) || Infinity;
-    return dateA - dateB;
-  });
+function loginView(error) {
+  app.innerHTML = '<main class="login-shell"><img class="official-logo" src="./assets/fieldconnect-official.jpg" alt="FieldConnect Group"><h1>FieldConnect <span>Group</span></h1><p class="muted">Operaciones de ingeniería de campo, conectadas.</p>' +
+    '<form id="login-form" class="panel login-panel"><h2>Iniciar sesión</h2>' +
+    '<label>Correo electrónico<input type="email" name="email" autocomplete="username" required placeholder="usuario@empresa.com"></label>' +
+    '<label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label>' +
+    '<button class="primary" type="submit">Entrar al sistema</button><p id="login-error" class="error" role="alert">' + esc(error || "") + '</p></form>' +
+    '<p class="tiny">Plataforma de gestión operativa · Acceso autorizado</p></main>';
 }
-
-function options(entries, selected) {
-  return entries.map(([key, label]) =>
-    `<option value="${esc(key)}"${key === selected ? " selected" : ""}>${esc(label)}</option>`).join("");
+function logout(showMessage) {
+  state.token = "";
+  state.user = null;
+  localStorage.removeItem("fc_token");
+  loginView();
+  if (showMessage) toast("Sesión cerrada.");
 }
-
-function renderResults(tickets = data.filter(canSeeTicket)) {
-  const list = visibleTickets(tickets);
-  const hasFilters = Boolean(filter || query.trim() || priorityFilter || regionFilter);
-  document.getElementById("ticket-count").textContent = `${list.length} de ${tickets.length}`;
-  document.getElementById("tickets").innerHTML = list.length ? list.map(ticketCard).join("") :
-    `<div class="empty"><strong>${hasFilters ? "Sin coincidencias" : "Aún no tienes servicios disponibles"}</strong>
-      <p>${hasFilters ? "Prueba con otra búsqueda o ajusta los filtros." : "Aquí aparecerán los tickets disponibles para tu perfil."}</p>
-      ${hasFilters ? '<button class="ghost" data-act="clear-filters">Limpiar filtros</button>' : ""}
-    </div>`;
+async function loadTickets() {
+  const params = new URLSearchParams();
+  if (state.filter) params.set("status", state.filter);
+  if (state.query) params.set("q", state.query);
+  const data = await api("/api/tickets?" + params.toString());
+  state.tickets = data.tickets;
 }
-
-function render() {
-  const tickets = data.filter(canSeeTicket);
-  const isDirector = user.role === "superadmin";
-  const canCreate = isDirector || user.role === "admin";
-  const headings = {
-    superadmin: ["Centro de control ejecutivo", "Supervisa la operación y el avance de los servicios."],
-    admin: ["Panel administrativo", "Crea tickets y supervisa su avance."]
+async function boot() {
+  if (!state.token) return loginView();
+  try {
+    const me = await api("/api/auth/me");
+    state.user = me.user;
+    await loadTickets();
+    renderDashboard();
+  } catch (err) {
+    logout(false);
+  }
+}
+function pill(value, isLogistics) {
+  const label = isLogistics ? (LOGISTICS[value] || value) : (STATUS[value] || PRIORITY[value] || value);
+  const color = ["completed","ready"].includes(value) ? "green" :
+    ["assigned","in_progress"].includes(value) ? "blue" :
+    ["in_coordination","on_hold"].includes(value) ? "amber" :
+    ["cancelled","urgent"].includes(value) ? "red" : "";
+  return '<span class="pill ' + color + '">' + esc(label) + '</span>';
+}
+function card(t) {
+  let actions = '<button class="secondary" data-act="detail" data-id="' + esc(t.id) + '">Ver detalle</button>';
+  if (canManage() && !["completed","cancelled"].includes(t.status) && t.logistics_status === "in_coordination")
+    actions += '<button class="primary" data-act="release" data-id="'+esc(t.id)+'">Completar coordinación</button>';
+  return '<article class="ticket-card"><div><div class="folio">' + esc(t.folio) + ' · ' + esc(PRIORITY[t.priority] || t.priority) + '</div>' +
+    '<h3>' + esc(t.client) + ' — ' + esc(t.service_type) + '</h3><p><strong>' + esc(t.project) + '</strong> · SITE ID: ' + esc(t.site_id) + '</p>' +
+    '<p>Folio de entrada: '+esc(t.access_folio||'No indicado')+'</p><p>' + esc(t.site_name) + ' · ' + esc(t.region) + '</p><p>Programado: ' + esc(fmtDate(t.scheduled_at)) + '</p><p>' +
+    pill(t.status, false) + ' ' + pill(t.logistics_status, true) + '</p><p>Apoyo: ' + esc(t.logistics_owner_name || "Sin asignar") +
+    ' · IDC: ' + esc(t.idc_owner_name || "Sin asignar") + '</p></div><div class="ticket-actions">' + actions + '</div></article>';
+}
+function renderDashboard() {
+  const u = state.user;
+  const list = state.tickets;
+  const counts = {
+    open:list.filter((t) => !["completed","cancelled"].includes(t.status)).length,
+    ready:list.filter((t) => t.logistics_status === "ready" && ["available","assigned"].includes(t.status)).length,
+    active:list.filter((t) => ["in_progress","on_hold"].includes(t.status)).length,
+    done:list.filter((t) => t.status === "completed").length
   };
-  const [heading, description] = headings[user.role];
-  const summary = [
-    ["Activos", tickets.filter(isOpen).length, "Pendientes de cierre", "active"],
-    ["Listos para IDC", tickets.filter(t => ["available","assigned"].includes(t.status) && t.logistics_status === "ready").length, "Disponibles para iniciar", "ready"],
-    ["En ejecución", tickets.filter(t => t.status === "in_progress").length, "Con trabajo en curso", "running"],
-    ["Vencidos", tickets.filter(isOverdue).length, "Servicios abiertos fuera de fecha", "overdue"]
-  ];
-  const regions = [...new Set(tickets.map(t => t.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es-MX"));
+  const title = u.role === "admin" ? "Panel administrativo" : "Centro de control ejecutivo";
+  app.innerHTML = '<div class="app-shell"><header class="topbar"><div class="brand"><img class="official-logo nav-logo" src="./assets/fieldconnect-official.jpg" alt="Logo oficial">FieldConnect <span>Group</span></div>' +
+    '<div class="user-box"><div class="avatar">' + esc((u.name || "U").slice(0,1).toUpperCase()) + '</div><div><div class="user-name">' + esc(u.name) +
+    '</div><div class="role-tag">' + esc(ROLE[u.role]) + '</div></div><button class="quiet" data-act="password">Contraseña</button><button class="quiet" id="logout">Salir</button></div></header><main class="layout">' +
+    '<div class="heading-row"><div><div class="eyebrow">Centro de operaciones</div><h1>' + title + '</h1><p>' +
+    (u.role === "admin" ? "Supervisa tickets, responsables y avance de los servicios." :
+      "Supervisa responsables, avance y resultados de los servicios.") + '</p></div>' +
+    (canManage() ? '<div class="toolbar"><button class="secondary" data-act="catalogs">Directorio y empresas</button><button class="primary" id="new-ticket">＋ Crear ticket</button></div>' : '') + '</div>' +
+    '<section class="stats"><div class="stat"><div class="stat-label">Servicios activos</div><div class="stat-value">' + counts.open +
+    '</div><div class="stat-note">Pendientes o en ejecución</div></div><div class="stat"><div class="stat-label">Listos para IDC</div><div class="stat-value">' + counts.ready +
+    '</div><div class="stat-note">Liberados por logística</div></div><div class="stat"><div class="stat-label">En ejecución / espera</div><div class="stat-value">' + counts.active +
+    '</div><div class="stat-note">Requieren seguimiento</div></div><div class="stat"><div class="stat-label">Completados</div><div class="stat-value">' + counts.done +
+    '</div><div class="stat-note">En el conjunto visible</div></div></section><section><h2 class="section-title">Servicios y tickets</h2>' +
+    '<div class="toolbar"><input id="search" type="search" placeholder="Buscar folio, cliente, proyecto o SITE ID…" value="' + esc(state.query) + '">' +
+    '<select id="status-filter"><option value="">Todos los estados</option>' + Object.keys(STATUS).map((k) =>
+      '<option value="' + k + '"' + (state.filter === k ? ' selected' : '') + '>' + STATUS[k] + '</option>').join("") +
+    '</select><button class="secondary" id="refresh">Actualizar</button></div><div class="ticket-list">' +
+    (list.length ? list.map(card).join("") : '<div class="empty"><strong>No hay tickets para mostrar</strong><p>Cambia los filtros o actualiza la lista.</p></div>') +
+    '</div></section></main></div>';
+}
+async function refresh() {
+  try { await loadTickets(); renderDashboard(); }
+  catch (err) { toast(err.message, true); }
+}
+function showModal(title, html) {
+  const old = document.getElementById("modal-backdrop");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.id = "modal-backdrop";
+  el.className = "modal-backdrop";
+  el.innerHTML = '<section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><h2>' + esc(title) +
+    '</h2><button class="quiet" data-act="close-modal" aria-label="Cerrar">✕</button></div>' + html + '</section>';
+  document.body.appendChild(el);
+  el.addEventListener("click", (e) => { if (e.target === el) el.remove(); });
+  return el;
+}
+async function createTicketModal() {
+  let catalogs;
+  try { catalogs=await api("/api/catalogs"); } catch(err) { return toast(err.message,true); }
+  const select=(name,label,rows)=>'<label>'+label+' *<select name="'+name+'" required><option value="">Selecciona del catálogo</option>'+rows.filter(x=>x.active).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')+'</select></label>';
 
-  root.innerHTML = `<div class="app-shell">
-    <header class="topbar">
-      <div class="brand-link">${symbol("nav")}<div class="brand-name">FieldConnect <span>Group</span></div></div>
-      <div class="userbox"><span class="demo-label">Demo</span><div class="avatar" aria-hidden="true">${esc(user.name[0].toUpperCase())}</div>
-        <div><div class="user-name">${esc(user.name)}</div><div class="role-name">${roles[user.role]}</div></div>
-        <button class="ghost" data-act="logout">Cambiar perfil</button>
-      </div>
-    </header>
-    <main class="layout">
-      <div class="heading dashboard-heading">
-        <div><div class="eyebrow">${roles[user.role]}</div><h1>${heading}</h1><p>${description}</p></div>
-        ${canCreate ? '<button class="primary" data-act="new">＋ Crear ticket</button>' : ""}
-      </div>
-      <section class="stats" aria-label="Resumen operativo">
-        ${summary.map(([label, value, note, tone]) => `<div class="stat stat-${tone}">
-          <div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div>
-        </div>`).join("")}
-      </section>
-      <input id="import-file" type="file" accept="application/json,.json" hidden>
-      <div class="workspace-bar">
-        <nav aria-label="Vista del panel">
-          <button type="button" class="view-tab" aria-pressed="${view === "services"}" data-act="services">Servicios</button>
-          ${canCreate ? `<button type="button" class="view-tab" aria-pressed="${view === "team"}" data-act="team">Equipo y avance</button>` : ""}
-        </nav>
-        <details class="data-menu"><summary>Datos del demo</summary><div>
-          <button class="ghost" data-act="export-csv">Exportar CSV</button>
-          <button class="ghost" data-act="backup">Respaldo JSON</button>
-          <button class="ghost" data-act="import">Importar respaldo</button>
-          <button class="ghost" data-act="reset">Restablecer demo</button>
-        </div></details>
-      </div>
-      ${view === "team" && canCreate ? superAdminPanel() : `<section class="service-workspace" aria-labelledby="services-title">
-        <div class="services-heading"><h2 id="services-title" class="section-title">Servicios y tickets</h2>
-          <span class="results-count" id="ticket-count" role="status"></span></div>
-        <div class="toolbar service-filters">
-          <label class="search-field"><span>Buscar</span><input type="search" id="search" placeholder="Folio, cliente, sitio o responsable" value="${esc(query)}"></label>
-          <label>Estado<select id="filter">${options([["", "Todos"], ["__overdue", "Vencidos"], ["__mine", "Creados por mí"], ...Object.entries(statusNames)], filter)}</select></label>
-          <label>Prioridad<select id="priority-filter">${options([["", "Todas"], ...Object.entries(priorityNames)], priorityFilter)}</select></label>
-          <label>Región<select id="region-filter">${options([["", "Todas"], ...regions.map(region => [region, region])], regionFilter)}</select></label>
-          <label>Orden<select id="sort-by">${options([["scheduled", "Por fecha"], ["priority", "Prioridad primero"], ["client", "Cliente A–Z"]], sortBy)}</select></label>
-        </div>
-        <div class="tickets" id="tickets"></div>
-      </section>`}
-    </main>
-    <footer class="footer">FieldConnect Group · Demostración con datos locales</footer>
-  </div>`;
-  if (view === "services") renderResults(tickets);
+  showModal("Crear servicio / ticket", '<form id="ticket-form"><div class="form-grid">' +
+    select("company_id","Empresa",catalogs.companies)+'<label>ID de acceso / folio de entrada *<input name="access_folio" required></label><label>Proyecto *<input name="project" required></label>' +
+    '<label>SITE ID<input value="Se genera al guardar" readonly><small>Consecutivo automático por empresa</small></label>'+select("logistics_owner","Ing. de base de proyecto / apoyo",catalogs.employees.filter(x=>x.kind==="logistics"))+select("idc_owner","IDC asignado",catalogs.employees.filter(x=>x.kind==="idc"))+'<label>Tipo de servicio *<input name="service_type" required></label>' +
+    '<label>Nombre del sitio *<input name="site_name" required></label><label>Ciudad o región *<input name="region" required></label>' +
+    '<label class="span-2">Domicilio operativo *<input name="address" required></label><label>Contacto<input name="contact_name"></label>' +
+    '<label>Teléfono<input name="contact_phone"></label><label>Fecha y hora programada<input type="datetime-local" name="scheduled_at"></label>' +
+    '<label>Prioridad<select name="priority"><option value="normal">Normal</option><option value="low">Baja</option><option value="high">Alta</option><option value="urgent">Urgente</option></select></label>' +
+    '<label class="span-2">Instrucciones de acceso<textarea name="access_instructions"></textarea></label>' +
+    '<label class="span-2">Alcance del servicio *<textarea name="scope" required></textarea></label>' +
+    '<label>Actividades solicitadas<textarea name="activities"></textarea></label><label>Herramientas necesarias<textarea name="tools"></textarea></label>' +
+    '<label>Materiales requeridos<textarea name="materials"></textarea></label><label>Condiciones previas<textarea name="prerequisites"></textarea></label>' +
+    '<label class="span-2">Observaciones técnicas<textarea name="technical_notes"></textarea></label><div class="span-2 divider"></div>' +
+    '<label>Importe acordado (MXN)<input type="number" min="0" step="0.01" name="agreed_amount" value="0"></label>' +
+    '<label>Viáticos (MXN)<input type="number" min="0" step="0.01" name="travel_expenses" value="0"></label>' +
+    '<label>Otros gastos (MXN)<input type="number" min="0" step="0.01" name="other_expenses" value="0"></label>' +
+    '<label>Estado de pago<select name="payment_status"><option value="pending">Pendiente</option><option value="partial">Parcial</option><option value="paid">Pagado</option><option value="not_applicable">No aplica</option></select></label>' +
+    '<label class="span-2">Observaciones económicas<textarea name="financial_notes"></textarea></label></div><p class="error" id="form-error"></p>' +
+    '<div class="form-actions"><button type="button" class="quiet" data-act="close-modal">Cancelar</button><button class="primary" type="submit">Crear ticket</button></div></form>');
 }
+async function openDetail(id) {
+  try {
+    const d = await api("/api/tickets/" + encodeURIComponent(id));
+    renderDetail(d);
+  } catch (err) { toast(err.message, true); }
+}
+function renderDetail(d) {
+  const t = d.ticket;
+  const canIDC = canManage() && !["completed","cancelled"].includes(t.status);
+  const canNote = canManage();
+  const checks = Array.isArray(t.close_checklist) ? t.close_checklist : [false,false,false,false,false,false];
+  let html = '<div class="heading-row"><div><h2>' + esc(t.client) + ' — ' + esc(t.service_type) + '</h2><p>' + esc(t.project) + ' · SITE ID ' + esc(t.site_id) + '</p></div><div>' +
+    pill(t.status, false) + ' ' + pill(t.logistics_status, true) + '</div></div><div class="detail-grid">' +
+    detailItem("Sitio / región", t.site_name + " · " + t.region) + detailItem("Domicilio", t.address) +
+    detailItem("Programación", fmtDate(t.scheduled_at)) + detailItem("Prioridad", PRIORITY[t.priority] || t.priority) +
+    detailItem("ID de acceso / folio de entrada",t.access_folio || "No indicado")+detailItem("Ing. de base de proyecto / apoyo", t.logistics_owner_name || "Sin asignar") + detailItem("IDC asignado", t.idc_owner_name || "Sin asignar") +
+    detailItem("Contacto", (t.contact_name || "No indicado") + " · " + (t.contact_phone || "")) +
+    detailItem("Progreso", Number(t.progress || 0) + "%") + '</div><div class="detail-section"><h3 class="section-title">Alcance y preparación</h3><div class="detail-grid">' +
+    detailItem("Alcance", t.scope) + detailItem("Actividades", t.activities || "No indicadas") + detailItem("Herramientas", t.tools || "No indicadas") +
+    detailItem("Materiales", t.materials || "No indicados") + detailItem("Condiciones previas", t.prerequisites || "No indicadas") +
+    detailItem("Acceso / observaciones", (t.access_instructions || "") + " " + (t.technical_notes || "")) + '</div></div>';
+  if (canManage()) html += '<div class="detail-section"><h3 class="section-title">Información económica · restringida</h3><div class="detail-grid">' +
+    detailItem("Importe acordado", money(t.agreed_amount)) + detailItem("Viáticos", money(t.travel_expenses)) +
+    detailItem("Otros gastos", money(t.other_expenses)) + detailItem("Estado de pago", t.payment_status) +
+    detailItem("Observaciones económicas", t.financial_notes || "Sin observaciones") + '</div></div>';
 
-function superAdminPanel(){
- const activeTeam=team.filter(e=>e.status==="active").length;
- const progress=data.length?Math.round(data.reduce((sum,t)=>sum+Math.max(0,Math.min(100,Number(t.progress)||0)),0)/data.length):0;
- const workload=team.map(e=>{
-  const assigned=data.filter(t=>t.idc_owner===e.name||t.logistics_owner===e.name);
-  const avg=assigned.length?Math.round(assigned.reduce((sum,t)=>sum+(Number(t.progress)||0),0)/assigned.length):0;
-  return '<div class="employee-row"><div class="employee-avatar">'+esc(e.name.split(/\s+/).map(n=>n[0]).join("").slice(0,2).toUpperCase())+'</div><div class="employee-main"><strong>'+esc(e.name)+'</strong><span>'+esc(roles[e.role]||e.role)+' · '+esc(e.area||"Sin área")+'</span><div class="progress-track"><span style="width:'+avg+'%"></span></div><small>'+assigned.length+' servicios relacionados · '+avg+'% progreso medio</small></div><span class="pill '+(e.status==="active"?"green":"red")+'">'+(e.status==="active"?"Activo":"Inactivo")+'</span><button class="ghost small-btn" data-act="edit-employee" data-id="'+esc(e.id)+'">Editar</button></div>';
- }).join("");
- return '<section class="super-panel"><div class="super-heading"><div><div class="eyebrow">VISTA GLOBAL</div><h2>Control ejecutivo</h2><p>Operación, personal y avance general en un solo lugar.</p></div><button class="primary" data-act="new-employee">＋ Agregar empleado</button></div><div class="super-kpis"><div><span>Personal registrado</span><strong>'+team.length+'</strong><small>'+activeTeam+' activos</small></div><div><span>Avance global</span><strong>'+progress+'%</strong><div class="progress-track"><span style="width:'+progress+'%"></span></div></div><div><span>Servicios en riesgo</span><strong>'+data.filter(t=>t.scheduled_at&&new Date(t.scheduled_at)<new Date()&&!["completed","cancelled"].includes(t.status)).length+'</strong><small>Fuera de fecha</small></div><div><span>Importe estimado</span><strong>'+money(data.reduce((sum,t)=>sum+Number(t.agreed_amount||0)+Number(t.travel_expenses||0)+Number(t.other_expenses||0),0))+'</strong><small>Solo demostración</small></div></div><div class="super-heading team-heading"><div><h2>Directorio interno de personal</h2><p>Apoyo e IDC son personal asignable; no tienen acceso al sistema.</p></div><span class="tiny">'+team.length+' perfiles</span></div><div class="employee-list">'+workload+'</div></section>';
-}
-function employeeForm(id){
- if(!["admin","superadmin"].includes(user.role))return;
- const emp=id?team.find(e=>e.id===id):null;
- const field=(key,label,type="text")=>'<label class="field">'+label+'<input name="'+key+'" type="'+type+'" value="'+esc(emp?.[key]||'')+'" '+(["name","email"].includes(key)?"required":"")+'></label>';
- modal(emp?"Editar perfil de empleado":"Agregar empleado",'<form id="employee-form" class="form-grid"><input type="hidden" name="id" value="'+esc(emp?.id||'')+'">'+field("name","Nombre completo")+field("email","Correo de contacto","email")+field("phone","Teléfono","tel")+'<label class="field">Rol<select name="role">'+Object.entries(roles).filter(([k])=>["logistics","idc"].includes(k)||emp?.role===k).map(([k,v])=>'<option value="'+k+'" '+(emp?.role===k?"selected":"")+'>'+v+'</option>').join("")+'</select></label>'+field("area","Área / especialidad")+'<label class="field">Estado<select name="status"><option value="active" '+(emp?.status!=="inactive"?"selected":"")+'>Activo</option><option value="inactive" '+(emp?.status==="inactive"?"selected":"")+'>Inactivo</option></select></label><div class="span2 form-actions"><button type="button" class="ghost" data-act="close">Cancelar</button>'+(emp?'<button type="button" class="danger" data-act="delete-employee" data-id="'+esc(emp.id)+'">Eliminar perfil</button>':'')+'<button class="primary">Guardar perfil</button></div></form>',id||"DIRECTORIO");
-}
-
-function ticketCard(t) {
- const overdue=isOverdue(t);
- const canEdit=["admin","superadmin"].includes(user.role);
- const progress=Math.max(0,Math.min(100,Number(t.progress)||0));
- return `<article class="ticket ${overdue?"ticket-overdue":""}"><div>
-  <div class="folio">${esc(t.folio)} · PRIORIDAD ${esc((priorityNames[t.priority]||t.priority).toUpperCase())}${overdue?' · <span class="overdue-text">VENCIDO</span>':''}</div>
-  <h3>${esc(t.client)} — ${esc(t.service_type)}</h3><p><strong>${esc(t.project)}</strong> · SITE ID: ${esc(t.site_id)}</p>
-  <p>Folio de entrada: ${esc(t.access_folio||"No indicado")}</p><p>${esc(t.site_name)} · ${esc(t.region)}</p><p>Programado: ${esc(date(t.scheduled_at))}</p>
-  ${user.role==="superadmin"?`<div class="ticket-progress"><div><span>Avance</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div></div>`:''}
-  <div class="pills">${pill(t.status)} ${!["completed","cancelled"].includes(t.status)?pill(t.logistics_status,true):''}</div>
-  <p>Apoyo: ${esc(t.logistics_owner||"Sin asignar")} · IDC: ${esc(t.idc_owner||"Sin asignar")}</p>
-  </div><div class="ticket-actions"><button class="ghost" data-act="detail" data-id="${t.id}">Ver detalle</button>
-  ${canEdit&&isOpen(t)&&t.logistics_status==="in_coordination"?`<button class="primary" data-act="release" data-id="${t.id}">Completar coordinación</button>`:''}</div></article>`;
-}
-
-function modal(title, body, id) {
-  const previous = document.querySelector(".modal-bg");
-  const opener = previous?.opener || document.activeElement;
-  previous?.remove();
-  const dialog = document.createElement("dialog");
-  dialog.className = "modal-bg";
-  dialog.opener = opener;
-  dialog.setAttribute("aria-labelledby", "modal-title");
-  dialog.innerHTML = `<section class="modal">
-    <div class="modal-head"><h2 id="modal-title">${esc(title)}</h2>
-    <button class="ghost" type="button" data-act="close" aria-label="Cerrar ventana" autofocus>✕</button></div>
-    ${body}
-  </section>`;
-  dialog.addEventListener("click", event => {
-    if (event.target === dialog) dialog.close();
-  });
-  dialog.addEventListener("close", () => {
-    dialog.remove();
-    modalTicket = null;
-    if (opener?.isConnected) opener.focus();
-  });
-  document.body.append(dialog);
-  modalTicket = id;
-  dialog.showModal();
-  return dialog;
-}
-function item(k,v){return '<div class="detail-item"><small>'+esc(k)+'</small><strong>'+esc(v||"No indicado")+'</strong></div>'}
-function detail(t){let own=["admin","superadmin"].includes(user.role),idc=["admin","superadmin"].includes(user.role)&&!["completed","cancelled"].includes(t.status);let h='<div class="heading"><div><h1 style="font-size:22px">'+esc(t.client)+' — '+esc(t.service_type)+'</h1><p>'+esc(t.project)+' · '+esc(t.site_id)+'</p></div><div>'+pill(t.status)+' '+pill(t.logistics_status,true)+'</div></div><div class="detail-grid">'+item("Sitio / región",t.site_name+" · "+t.region)+item("Domicilio",t.address)+item("Programación",date(t.scheduled_at))+item("Prioridad",priorityNames[t.priority])+item("Ing. de base de proyecto / apoyo",t.logistics_owner)+item("ID de acceso / folio de entrada",t.access_folio)+item("IDC asignado",t.idc_owner)+item("Contacto",(t.contact_name||"")+" · "+(t.contact_phone||""))+item("Progreso",t.progress+"%")+'</div><div class="detail-section"><h3>Alcance y preparación</h3><div class="detail-grid">'+item("Alcance",t.scope)+item("Actividades",t.activities)+item("Herramientas",t.tools)+item("Materiales",t.materials)+item("Requisitos previos",t.prerequisites)+item("Notas técnicas",t.technical_notes)+'</div></div>';if(["admin","superadmin"].includes(user.role))h+='<div class="detail-section"><h3>Información económica · Administración</h3><div class="detail-grid">'+item("Importe acordado",money(t.agreed_amount))+item("Viáticos",money(t.travel_expenses))+item("Otros gastos",money(t.other_expenses))+item("Estado de pago",t.payment_status)+item("Notas económicas",t.financial_notes)+'</div></div>';h+='<div class="detail-section"><h3>Checklist de cierre</h3><form id="check-form">'+checksText.map((c,i)=>'<label class="check-row"><input type="checkbox" name="c'+i+'" '+(t.checklist[i]?'checked':'')+(!idc?'disabled':'')+'> '+esc(c)+'</label>').join("")+(idc?'<button class="ghost">Guardar checklist</button>':'')+'</form></div>';if(idc){h+='<div class="detail-section"><h3>Ejecución del servicio</h3><div class="toolbar">'+(t.status==="assigned"?'<button class="primary" data-act="start" data-id="'+t.id+'">Iniciar servicio</button>':'')+(["assigned","in_progress"].includes(t.status)?'<button class="ghost" data-act="hold" data-id="'+t.id+'">Reportar bloqueo</button>':'')+(t.status==="on_hold"?'<button class="primary" data-act="resume" data-id="'+t.id+'">Reanudar servicio</button>':'')+'</div><form id="evidence-form" class="form-grid"><label class="field">Nombre de evidencia<input name="label" required></label><label class="field">URL de evidencia<input name="url" type="url" placeholder="https://…" required></label><div class="span2"><button class="ghost">＋ Agregar evidencia</button></div></form><form id="result-form"><label class="field">Resultado del servicio<textarea name="result" required>'+esc(t.result)+'</textarea></label><button class="primary">Finalizar servicio</button><p class="tiny">El cierre requiere seis puntos, resultado y al menos una evidencia.</p><p class="error" id="close-error"></p></form></div>'}if(own){h+='<div class="detail-section"><h3>Registrar nota o incidencia</h3><form id="note-form" class="form-grid"><label class="field">Tipo<select name="type"><option value="note">Nota técnica</option><option value="incident">Incidencia</option><option value="blocker">Bloqueo</option></select></label><label class="field span2">Descripción<textarea name="body" required maxlength="3000"></textarea></label><div class="span2"><button class="ghost">Guardar registro</button></div></form></div>'}if(t.result)h+='<div class="detail-section"><h3>Resultado del servicio</h3>'+item("Informe de cierre",t.result)+'</div>';h+='<div class="detail-section"><h3>Evidencias</h3><div class="timeline">'+(t.evidence.length?t.evidence.map(e=>'<div class="timeline-item"><strong>'+esc(e.label)+'</strong><p><a href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">Abrir evidencia ↗</a></p><p>'+esc(e.by)+' · '+esc(date(e.at))+'</p></div>').join(""):'<p class="tiny">Sin evidencias registradas.</p>')+'</div></div><div class="detail-section"><h3>Notas e incidencias</h3><div class="timeline">'+(t.notes.length?t.notes.map(n=>'<div class="timeline-item"><strong>'+esc(n.type)+' · '+esc(n.author)+'</strong><p>'+esc(n.body)+'</p><p>'+esc(date(n.at))+'</p></div>').join(""):'<p class="tiny">Sin notas registradas.</p>')+'</div></div><div class="detail-section"><h3>Historial de actividad</h3><div class="timeline">'+t.events.map(e=>'<div class="timeline-item"><strong>'+esc(e.type)+'</strong><p>'+esc(e.actor)+' · '+esc(date(e.at))+'</p></div>').join("")+'</div></div>';modal(t.folio,h,t.id)}
-function newTicket(){
- const fields=[
-  ["client","Empresa"],["access_folio","ID de acceso / folio de entrada"],["project","Proyecto"],
-  ["service_type","Tipo de servicio"],["site_name","Nombre del sitio"],
-  ["region","Región"],["address","Domicilio"],["contact_name","Contacto"],
-  ["contact_phone","Teléfono"],["scheduled_at","Fecha programada"],
-  ["scope","Alcance"],["activities","Actividades"],["tools","Herramientas"],
-  ["materials","Materiales"],["prerequisites","Requisitos previos"],
-  ["technical_notes","Notas técnicas"]
- ];
- const longFields=["address","scope","activities","tools","materials","prerequisites","technical_notes"];
- const textFields=["scope","activities","tools","materials","prerequisites","technical_notes"];
- const requiredFields=["client","access_folio","project","service_type","site_name","region","address"];
- const fieldMarkup=fields.map(([key,label])=>{
-  const classes=longFields.includes(key)?"span2":"";
-  const required=requiredFields.includes(key)?"required":"";
-  const control=textFields.includes(key)
-   ? '<textarea name="'+key+'" '+(key==="scope"?"required":"")+'></textarea>'
-   : '<input name="'+key+'" '+required+' '+(key==="scheduled_at"?'type="datetime-local"':"")+'>';
-  return '<label class="field '+classes+'">'+label+control+'</label>';
- }).join("");
- const staffSelect=(kind,label)=>'<label class="field">'+label+'<select name="'+(kind==="logistics"?"support_id":"field_id")+'" required><option value="">Selecciona del directorio</option>'+team.filter(e=>e.role===kind&&e.status==="active").map(e=>'<option value="'+esc(e.id)+'">'+esc(e.name)+'</option>').join('')+'</select></label>';
- const body='<form id="new-form" class="form-grid"><label class="field">SITE ID<input value="Se genera al guardar" readonly><small>Consecutivo por empresa</small></label>'+fieldMarkup+staffSelect("logistics","Ing. de base de proyecto / apoyo")+staffSelect("idc","IDC asignado")+
-  '<label class="field">Prioridad<select name="priority"><option value="normal">Normal</option><option value="low">Baja</option><option value="high">Alta</option><option value="urgent">Urgente</option></select></label>'+
-  '<div class="span2 form-actions"><button type="button" class="ghost" data-act="close">Cancelar</button><button class="primary">Crear ticket</button></div></form>';
- modal("Crear servicio / ticket",body);
-}
-function event(t,type){t.events.unshift({type,actor:user.name,at:now()});t.updated_at=now()}
-
-function downloadFile(filename,content,type){const blob=new Blob([content],{type:type});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-function action(act,id) {
- const t=data.find(x=>String(x.id)===String(id));
- const canEdit=["admin","superadmin"].includes(user?.role);
- if(["detail","release","start","resume","hold"].includes(act)&&!t)return toast("El servicio ya no está disponible.",true);
- if(act==="detail"&&canSeeTicket(t))return detail(t);
- if(act==="new"&&canEdit)return newTicket();
- if(act==="new-employee"&&canEdit)return employeeForm();
- if(act==="edit-employee"&&canEdit)return employeeForm(id);
- if(act==="delete-employee"&&canEdit){
-  if(confirm("¿Eliminar este perfil del directorio?")){team=team.filter(e=>e.id!==id);saveTeam();document.querySelector(".modal-bg")?.close();render();toast("Perfil eliminado del directorio.")}
-  return;
- }
- if(act==="logout"){user=null;view="services";filter=query=priorityFilter=regionFilter="";sortBy="scheduled";login();scrollTo(0,0);return}
- if(act==="services"||act==="team"){view=act;render();root.querySelector(`[data-act="${act}"]`).focus();return}
- if(act==="clear-filters"){filter=query=priorityFilter=regionFilter="";render();document.getElementById("search").focus();return}
- if(act==="close"){document.querySelector(".modal-bg")?.close();return}
- if(act==="reset"){
-  if(confirm("¿Restablecer tickets y directorio demo? Se perderán los cambios locales.")){data=seed();team=seedTeam();saveTeam();save();toast("Datos de demostración restablecidos.");render()}
-  return;
- }
- if(act==="refresh"){render();toast("Panel actualizado.");return}
- if(act==="export-csv"){
-  const cols=["folio","client","project","site_id","access_folio","service_type","site_name","region","scheduled_at","priority","status","logistics_status","logistics_owner","idc_owner","progress","result"];
-  const csv=[cols.join(","),...visibleTickets().map(x=>cols.map(k=>'"'+String(x[k]??"").replace(/"/g,'""')+'"').join(","))].join("\r\n");
-  downloadFile("fieldconnect-tickets.csv","\uFEFF"+csv,"text/csv;charset=utf-8;");toast("CSV exportado.");return;
- }
- if(act==="backup"){downloadFile("fieldconnect-respaldo.json",JSON.stringify({version:1,exported_at:now(),tickets:data},null,2),"application/json");toast("Respaldo descargado.");return}
- if(act==="import"){document.getElementById("import-file").click();return}
- if(!canEdit||!t)return;
- if(!isOpen(t))return toast("El ticket ya está cerrado.",true);
- if(act==="release"){
-  if(t.logistics_status!=="in_coordination")return toast("El ticket no está en coordinación.",true);
-  t.logistics_status="ready";event(t,"Coordinación completada");toast("Coordinación completada.");
- }else if(act==="start"||act==="resume"){
-  if(!["assigned","on_hold"].includes(t.status)||t.logistics_status!=="ready")return toast("Completa la coordinación antes de iniciar o reanudar.",true);
-  t.status="in_progress";t.progress=Math.max(10,t.progress||0);event(t,"Ejecución iniciada / reanudada");toast("Ejecución actualizada.");
- }else if(act==="hold"){
-  if(!["assigned","in_progress"].includes(t.status))return toast("El servicio no puede ponerse en espera.",true);
-  const reason=prompt("Describe el bloqueo o motivo de espera:");if(!reason?.trim())return;
-  t.notes.unshift({type:"blocker",body:reason.trim(),author:user.name,at:now()});t.status="on_hold";event(t,"Servicio puesto en espera");toast("Bloqueo registrado.");
- }else return;
- save();render();if(["start","resume","hold"].includes(act))detail(t);
-}
-
-document.addEventListener("submit",e=>{e.preventDefault();let f=e.target;if(f.id==="login-form"){let fd=new FormData(f);if(!["admin","superadmin"].includes(fd.get("role")))return;user={name:String(fd.get("name")).trim(),role:fd.get("role")};if(!user.name){document.getElementById("login-error").textContent="Escribe un nombre para entrar.";return}render();scrollTo(0,0)}else if(f.id==="employee-form"){if(!["admin","superadmin"].includes(user.role))return;const fd=Object.fromEntries(new FormData(f));const existing=team.find(e=>e.id===fd.id);const entry={id:fd.id||("emp-"+Date.now()),name:fd.name.trim(),email:fd.email.trim(),phone:fd.phone.trim(),role:fd.role,area:fd.area.trim(),status:fd.status};if(existing)Object.assign(existing,entry);else team.push(entry);saveTeam();document.querySelector(".modal-bg")?.remove();render();toast(existing?"Perfil actualizado.":"Empleado agregado al directorio.")}else if(f.id==="new-form"){if(!["admin","superadmin"].includes(user.role))return;let fd=Object.fromEntries(new FormData(f));
-const support=team.find(e=>e.id===fd.support_id&&e.role==="logistics"&&e.status==="active");const field=team.find(e=>e.id===fd.field_id&&e.role==="idc"&&e.status==="active");
-if(!support||!field)return toast("Selecciona personal activo del directorio.",true);
-fd.client=fd.client.trim();if(!fd.client||!fd.access_folio.trim())return toast("Completa empresa y folio de entrada.",true);
-const counterKey="fieldconnect_site_counters_v2";let counters=JSON.parse(localStorage.getItem(counterKey)||"{}");const company=fd.client.toLocaleLowerCase("es-MX");
-const maxExisting=Math.max(0,...data.filter(t=>t.client.trim().toLocaleLowerCase("es-MX")===company&&/^\d+$/.test(t.site_id)).map(t=>Number(t.site_id)));
-const sequence=Math.max(counters[company]||0,maxExisting)+1;counters[company]=sequence;localStorage.setItem(counterKey,JSON.stringify(counters));fd.site_id=String(sequence).padStart(6,"0");
-let id=data.reduce((max,t)=>Math.max(max,Number(t.id)),0)+1;let ticket={...fd,id,folio:"FC-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+String(id).padStart(3,"0"),scheduled_at:fd.scheduled_at?new Date(fd.scheduled_at).toISOString():null,priority:fd.priority,status:"assigned",logistics_status:"in_coordination",created_by:user.name,logistics_owner:support.name,idc_owner:field.name,progress:0,agreed_amount:0,travel_expenses:0,other_expenses:0,payment_status:"pending",financial_notes:"",result:"",checklist:[false,false,false,false,false,false],evidence:[],notes:[],events:[],created_at:now()};event(ticket,"Ticket creado");data.unshift(ticket);save();document.querySelector(".modal-bg")?.remove();render();toast("Ticket creado: "+ticket.folio)}else{let t=data.find(x=>String(x.id)===String(modalTicket));if(!t)return;if(f.id==="check-form"){t.checklist=checksText.map((_,i)=>f.elements["c"+i].checked);event(t,"Checklist actualizado");save();detail(t);toast("Checklist guardado.")}else if(f.id==="evidence-form"){let fd=Object.fromEntries(new FormData(f));if(!/^https?:\/\//i.test(fd.url))return toast("Usa una URL HTTP o HTTPS válida.",true);t.evidence.unshift({label:fd.label,url:fd.url,by:user.name,at:now()});event(t,"Evidencia agregada");save();detail(t);toast("Evidencia registrada.")}else if(f.id==="note-form"){let fd=Object.fromEntries(new FormData(f));t.notes.unshift({type:fd.type,body:fd.body,author:user.name,at:now()});event(t,"Nota registrada: "+fd.type);save();detail(t);toast("Nota guardada.")}else if(f.id==="result-form"){let result=new FormData(f).get("result").trim();if(!["in_progress","on_hold"].includes(t.status))return document.getElementById("close-error").textContent="Inicia el servicio antes del cierre.";if(t.checklist.some(v=>!v))return document.getElementById("close-error").textContent="Completa los seis puntos del checklist.";if(!t.evidence.length)return document.getElementById("close-error").textContent="Agrega al menos una evidencia.";if(!result)return document.getElementById("close-error").textContent="Escribe el resultado del servicio.";t.result=result;t.status="completed";t.progress=100;event(t,"Servicio completado");save();document.querySelector(".modal-bg")?.remove();render();toast("Servicio cerrado correctamente.")}}});
-document.addEventListener("click",e=>{let b=e.target.closest("[data-act]");if(b)action(b.dataset.act,b.dataset.id)});
-document.addEventListener("change", event => {
-  const { target } = event;
-  if (target.name === "role" && target.form?.id === "login-form") {
-    document.getElementById("demo-name").value = demoProfiles.find(profile => profile.role === target.value).name;
-    return;
+  html += '<div class="detail-section"><h3 class="section-title">Checklist de cierre</h3><form id="checklist-form">';
+  for (let i = 0; i < CHECKLIST.length; i++) {
+    html += '<label class="check-row"><input type="checkbox" name="check-' + i + '"' + (checks[i] ? " checked" : "") + (canIDC ? "" : " disabled") + '>' + esc(CHECKLIST[i]) + '</label>';
   }
-  if (target.matches(".service-filters select")) {
-    if (target.id === "filter") filter = target.value;
-    if (target.id === "priority-filter") priorityFilter = target.value;
-    if (target.id === "region-filter") regionFilter = target.value;
-    if (target.id === "sort-by") sortBy = target.value;
-    renderResults();
-    return;
+  if (canIDC) html += '<button class="secondary" type="submit">Guardar checklist</button>';
+  html += '</form></div>';
+
+  if (canIDC) {
+    html += '<div class="detail-section"><h3 class="section-title">Acciones de ejecución</h3><div class="toolbar">';
+    if (t.status === "assigned") html += '<button class="primary" data-act="start" data-id="' + t.id + '">Iniciar ejecución</button>';
+    if (["assigned","in_progress"].includes(t.status)) html += '<button class="secondary" data-act="hold" data-id="' + t.id + '">Reportar bloqueo / espera</button>';
+    if (t.status === "on_hold") html += '<button class="primary" data-act="resume" data-id="' + t.id + '">Reanudar ejecución</button>';
+    html += '</div><form id="evidence-form" class="form-grid"><label>Nombre de evidencia<input name="label" required></label>' +
+      '<label>URL de evidencia<input type="url" name="url" placeholder="https://…" required></label><div class="span-2"><button class="secondary" type="submit">Agregar evidencia por URL</button></div></form>' +
+      '<div class="divider"></div><form id="result-form"><label>Resultado del servicio<textarea name="result" required>' + esc(t.result || "") +
+      '</textarea></label><button class="primary" type="submit">Finalizar servicio</button><p class="tiny">El cierre exige los seis puntos del checklist, resultado escrito y al menos una evidencia.</p><p class="error" id="close-error"></p></form></div>';
   }
-  if (target.id !== "import-file" || !target.files?.length) return;
-  const reader = new FileReader();
-  reader.onload = () => {
+  if (canNote) html += '<div class="detail-section"><h3 class="section-title">Agregar nota o incidencia</h3><form id="note-form" class="form-grid">' +
+    '<label>Tipo<select name="note_type"><option value="note">Nota técnica</option><option value="incident">Incidencia</option><option value="blocker">Bloqueo</option></select></label>' +
+    '<label class="span-2">Descripción<textarea name="body" maxlength="5000" required></textarea></label><div class="span-2"><button class="secondary" type="submit">Guardar registro</button></div></form></div>';
+  html += '<div class="detail-section"><h3 class="section-title">Evidencias</h3><div class="timeline">' +
+    (d.evidence.length ? d.evidence.map((x) => '<div class="timeline-item"><strong>' + esc(x.label) + '</strong><p><a class="link" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer">Abrir evidencia</a></p><p>' + esc(x.added_by_name || "Usuario") + ' · ' + esc(fmtDate(x.created_at)) + '</p></div>').join("") : '<p class="muted">Todavía no hay evidencias.</p>') +
+    '</div></div><div class="detail-section"><h3 class="section-title">Notas e incidencias</h3><div class="timeline">' +
+    (d.notes.length ? d.notes.map((x) => '<div class="timeline-item"><strong>' + esc(x.author_name || "Usuario") + ' · ' + esc(x.note_type) + '</strong><p>' + esc(x.body) + '</p><p>' + esc(fmtDate(x.created_at)) + '</p></div>').join("") : '<p class="muted">Sin notas ni incidencias.</p>') +
+    '</div></div><div class="detail-section"><h3 class="section-title">Historial de auditoría</h3><div class="timeline">' +
+    (d.events.length ? d.events.map((x) => '<div class="timeline-item"><strong>' + esc(String(x.event_type).replace(/_/g, " ")) + '</strong><p>' + esc(x.actor_name || "Sistema") + ' · ' + esc(fmtDate(x.created_at)) + '</p></div>').join("") : '<p class="muted">Sin movimientos registrados.</p>') +
+    '</div></div>';
+  const modal = showModal(t.folio, html);
+  modal.dataset.ticketId = t.id;
+}
+function detailItem(label, value) {
+  return '<div class="detail-item"><small>' + esc(label) + '</small><strong>' + esc(value == null ? "" : value) + '</strong></div>';
+}
+async function showCatalogs() {
+  try {
+    const d=await api("/api/catalogs");
+    showModal("Directorio interno y empresas",'<p>Ingeniería de apoyo e IDC se asignan a los tickets sin cuenta de acceso.</p><h3>Empresas</h3>'+d.companies.map(x=>'<p>'+esc(x.name)+'</p>').join('')+
+      '<form id="company-form"><label>Nombre de empresa<input name="name" required maxlength="200"></label><button class="secondary">Agregar empresa</button></form><h3>Personal</h3>'+d.employees.map(x=>'<div class="catalog-row"><span><strong>'+esc(x.name)+'</strong> · '+(x.kind==="logistics"?'Ing. de apoyo':'IDC')+' · '+esc(x.email)+'</span><button class="quiet" data-act="toggle-employee" data-id="'+esc(x.id)+'" data-active="'+x.active+'">'+(x.active?'Desactivar':'Activar')+'</button></div>').join('')+
+      '<form id="employee-form" class="form-grid"><label>Nombre<input name="name" required maxlength="200"></label><label>Tipo<select name="kind"><option value="logistics">Ingeniero de apoyo</option><option value="idc">IDC</option></select></label><label>Correo de contacto<input name="email" type="email"></label><label>Teléfono<input name="phone"></label><div class="span-2"><button class="secondary">Agregar persona</button></div></form><p class="error" id="catalog-error" role="alert"></p>');
+  } catch(err) { toast(err.message,true); }
+}
+async function sendAction(id, action, body) {
+  const endpoints = { release:"/release" };
+  try {
+    const result = await api("/api/tickets/" + encodeURIComponent(id) + endpoints[action], { method:"POST", body:"{}" });
+    toast(result.message);
+    await refresh();
+  } catch (err) { toast(err.message, true); }
+}
+async function changeStatus(id, status, extra) {
+  try {
+    const result = await api("/api/tickets/" + encodeURIComponent(id) + "/status", {
+      method:"POST", body:JSON.stringify(Object.assign({ status:status }, extra || {}))
+    });
+    toast(result.message);
+    const modal = document.getElementById("modal-backdrop");
+    if (modal) modal.remove();
+    await refresh();
+  } catch (err) { toast(err.message, true); }
+}
+function formObject(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  return data;
+}
+
+document.addEventListener("submit", async (e) => {
+  const form = e.target;
+  if (!form || !form.id) return;
+  e.preventDefault();
+  if (form.id === "login-form") {
+    const data = formObject(form);
     try {
-      const parsed = JSON.parse(reader.result);
-      const incoming = normalizeTickets(Array.isArray(parsed) ? parsed : parsed?.tickets);
-      if (!confirm(`¿Importar ${incoming.length} tickets y reemplazar los datos actuales?`)) return;
-      localStorage.setItem(KEY, JSON.stringify(incoming));
-      data = incoming;
-      regionFilter = "";
-      render();
-      toast("Respaldo importado correctamente.");
-    } catch (error) {
-      toast("No se pudo importar: " + error.message, true);
-    } finally {
-      target.value = "";
+      const response = await api("/api/auth/login", { method:"POST", body:JSON.stringify(data) });
+      state.token = response.token;
+      state.user = response.user;
+      localStorage.setItem("fc_token", state.token);
+      await loadTickets();
+      renderDashboard();
+    } catch (err) {
+      const error = document.getElementById("login-error");
+      if (error) error.textContent = err.message;
     }
-  };
-  reader.onerror = () => {
-    target.value = "";
-    toast("No se pudo leer el archivo seleccionado.", true);
-  };
-  reader.readAsText(target.files[0]);
+  } else if (form.id === "password-form") {
+    const data=formObject(form);
+    if(data.new_password!==data.confirm_password) { document.getElementById("password-error").textContent="Las contraseñas no coinciden.";return; }
+    try { const r=await api("/api/auth/password",{method:"POST",body:JSON.stringify(data)});document.getElementById("modal-backdrop")?.remove();logout(false);toast(r.message); }
+    catch(err){document.getElementById("password-error").textContent=err.message;}
+  } else if (["employee-form","company-form"].includes(form.id)) {
+    try { await api(form.id==="company-form"?"/api/companies":"/api/employees",{method:"POST",body:JSON.stringify(formObject(form))}); await showCatalogs(); toast("Catálogo actualizado."); }
+    catch(err) { const error=document.getElementById("catalog-error"); if(error)error.textContent=err.message; }
+  } else if (form.id === "ticket-form") {
+    const data = formObject(form);
+    ["agreed_amount","travel_expenses","other_expenses"].forEach((k) => { data[k] = Number(data[k] || 0); });
+    if (data.scheduled_at) data.scheduled_at = new Date(data.scheduled_at).toISOString();
+    else delete data.scheduled_at;
+    try {
+      const result = await api("/api/tickets", { method:"POST", body:JSON.stringify(data) });
+      document.getElementById("modal-backdrop").remove();
+      toast("Ticket creado: " + result.ticket.folio);
+      await refresh();
+    } catch (err) {
+      const error = document.getElementById("form-error");
+      if (error) error.textContent = err.message;
+    }
+  } else if (form.id === "checklist-form") {
+    const modal = document.getElementById("modal-backdrop");
+    const id = modal && modal.dataset.ticketId;
+    const checklist = CHECKLIST.map((_, i) => !!form.querySelector('[name="check-' + i + '"]').checked);
+    try {
+      const result = await api("/api/tickets/" + encodeURIComponent(id) + "/checklist", { method:"PUT", body:JSON.stringify({ checklist:checklist }) });
+      toast(result.message);
+      await openDetail(id);
+    } catch (err) { toast(err.message, true); }
+  } else if (form.id === "evidence-form") {
+    const modal = document.getElementById("modal-backdrop");
+    const id = modal && modal.dataset.ticketId;
+    try {
+      const result = await api("/api/tickets/" + encodeURIComponent(id) + "/evidence", { method:"POST", body:JSON.stringify(formObject(form)) });
+      toast(result.message);
+      await openDetail(id);
+    } catch (err) { toast(err.message, true); }
+  } else if (form.id === "note-form") {
+    const modal = document.getElementById("modal-backdrop");
+    const id = modal && modal.dataset.ticketId;
+    try {
+      const result = await api("/api/tickets/" + encodeURIComponent(id) + "/notes", { method:"POST", body:JSON.stringify(formObject(form)) });
+      toast(result.message);
+      await openDetail(id);
+    } catch (err) { toast(err.message, true); }
+  } else if (form.id === "result-form") {
+    const modal = document.getElementById("modal-backdrop");
+    const id = modal && modal.dataset.ticketId;
+    const resultText = new FormData(form).get("result");
+    try {
+      const result = await api("/api/tickets/" + encodeURIComponent(id) + "/status", {
+        method:"POST", body:JSON.stringify({ status:"completed", result:resultText })
+      });
+      toast(result.message);
+      if (modal) modal.remove();
+      await refresh();
+    } catch (err) {
+      const error = document.getElementById("close-error");
+      if (error) error.textContent = err.message;
+    }
+  }
 });
 
-document.addEventListener("input", event => {
-  if (event.target.id !== "search") return;
-  query = event.target.value;
-  renderResults();
+document.addEventListener("click", async (e) => {
+  const button = e.target.closest("button[data-act],button#logout,button#new-ticket,button#refresh");
+  if (!button) return;
+  if (button.id === "logout") return logout(true);
+  if (button.id === "new-ticket") return createTicketModal();
+  if (button.id === "refresh") return refresh();
+  const act = button.dataset.act;
+  const id = button.dataset.id;
+  if (act === "catalogs") return showCatalogs();
+  if (act === "password") return showModal("Cambiar contraseña",'<form id="password-form"><label>Contraseña actual<input type="password" name="current_password" autocomplete="current-password" required></label><label>Contraseña nueva<input type="password" name="new_password" minlength="12" maxlength="72" autocomplete="new-password" required></label><label>Confirmar contraseña nueva<input type="password" name="confirm_password" minlength="12" maxlength="72" autocomplete="new-password" required></label><p class="tiny">Usa al menos 12 caracteres. Se cerrarán las sesiones anteriores.</p><p class="error" id="password-error" role="alert"></p><button class="primary">Guardar contraseña</button></form>');
+  if (act === "toggle-employee") { try { await api("/api/employees/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({active:button.dataset.active!=="true"})}); await showCatalogs(); } catch(err) { toast(err.message,true); } return; }
+  if (act === "close-modal") {
+    const modal = document.getElementById("modal-backdrop");
+    if (modal) modal.remove();
+  } else if (act === "detail") {
+    await openDetail(id);
+  } else if (act === "release") {
+    await sendAction(id, act);
+  } else if (act === "start") {
+    await changeStatus(id, "in_progress", { progress:1 });
+  } else if (act === "resume") {
+    await changeStatus(id, "in_progress");
+  } else if (act === "hold") {
+    const reason = window.prompt("Describe el bloqueo que impide continuar:");
+    if (reason && reason.trim()) {
+      const modal = document.getElementById("modal-backdrop");
+      try {
+        await api("/api/tickets/" + encodeURIComponent(id) + "/notes", {
+          method:"POST", body:JSON.stringify({ note_type:"blocker", body:reason.trim() })
+        });
+        await changeStatus(id, "on_hold");
+      } catch (err) { toast(err.message, true); }
+    }
+  }
 });
 
-login();
+document.addEventListener("change", async (e) => {
+  if (e.target && e.target.id === "status-filter") {
+    state.filter = e.target.value;
+    await refresh();
+  }
+});
+document.addEventListener("keydown", async (e) => {
+  if (e.target && e.target.id === "search" && e.key === "Enter") {
+    state.query = e.target.value;
+    await refresh();
+  }
+});
+document.addEventListener("change", async (e) => {
+  if (e.target && e.target.id === "search") {
+    state.query = e.target.value;
+    await refresh();
+  }
+});
+
+boot();

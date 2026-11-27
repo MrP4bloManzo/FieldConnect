@@ -9,7 +9,7 @@
     "dev": "node --watch src/server.js",
     "db:init": "node src/init-db.js",
     "db:demo": "node src/init-db.js --demo",
-    "test": "node --test tests",
+    "test": "node --test tests/database.test.js tests/fetch-router.test.js",
     "build:web": "node scripts/build-pages.js",
     "build:edge": "node scripts/build-edge.js"
   },
