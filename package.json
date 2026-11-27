@@ -7,9 +7,15 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "db:init": "node src/init-db.js"
+    "db:init": "node src/init-db.js",
+    "db:demo": "node src/init-db.js --demo",
+    "test": "node --test tests",
+    "build:web": "node scripts/build-pages.js",
+    "build:edge": "node scripts/build-edge.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
@@ -17,5 +23,8 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.6.0"
   }
 }

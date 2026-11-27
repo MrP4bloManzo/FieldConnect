@@ -12,7 +12,8 @@ const CHECKLIST = [
 ];
 const STATUS = { available:"Disponible", assigned:"Asignado", in_progress:"En progreso", on_hold:"En espera", completed:"Completado", cancelled:"Cancelado" };
 const LOGISTICS = { pending:"Pendiente de coordinación", in_coordination:"En coordinación", ready:"Listo para asignación" };
-const ROLE = { admin:"Administración", logistics:"Ingeniería de apoyo", idc:"Ingeniero de campo" };
+const ROLE = { admin:"Administrador", director:"Directivo" };
+const canManage = () => ["admin","director"].includes(state.user?.role);
 const PRIORITY = { low:"Baja", normal:"Normal", high:"Alta", urgent:"Urgente" };
 const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const fmtDate = (v) => v ? new Date(v).toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" }) : "Sin programar";
@@ -29,7 +30,7 @@ async function api(url, options) {
   options = options || {};
   const headers = Object.assign({ "Content-Type":"application/json" }, options.headers || {});
   if (state.token) headers.Authorization = "Bearer " + state.token;
-  const response = await fetch(url, Object.assign({}, options, { headers:headers }));
+  const response = await fetch((window.FIELDCONNECT_CONFIG?.apiBase || "") + url, Object.assign({}, options, { headers:headers }));
   const data = await response.json().catch(() => ({}));
   if (response.status === 401 && url !== "/api/auth/login") {
     logout(false);
@@ -39,7 +40,7 @@ async function api(url, options) {
   return data;
 }
 function loginView(error) {
-  app.innerHTML = '<main class="login-shell"><div class="brand-mark">FC</div><h1>FieldConnect <span>Group</span></h1><p class="muted">Operaciones de ingeniería de campo, conectadas.</p>' +
+  app.innerHTML = '<main class="login-shell"><img class="official-logo" src="./assets/fieldconnect-official.jpg" alt="FieldConnect Group"><h1>FieldConnect <span>Group</span></h1><p class="muted">Operaciones de ingeniería de campo, conectadas.</p>' +
     '<form id="login-form" class="panel login-panel"><h2>Iniciar sesión</h2>' +
     '<label>Correo electrónico<input type="email" name="email" autocomplete="username" required placeholder="usuario@empresa.com"></label>' +
     '<label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label>' +
@@ -81,16 +82,11 @@ function pill(value, isLogistics) {
 }
 function card(t) {
   let actions = '<button class="secondary" data-act="detail" data-id="' + esc(t.id) + '">Ver detalle</button>';
-  if (state.user.role === "logistics" && t.status === "available" && t.logistics_status === "pending")
-    actions += '<button class="primary" data-act="claim-logistics" data-id="' + esc(t.id) + '">Reclamar coordinación</button>';
-  if ((state.user.role === "admin" || (state.user.role === "logistics" && String(t.logistics_owner) === String(state.user.id))) &&
-      t.status === "available" && t.logistics_status === "in_coordination")
-    actions += '<button class="primary" data-act="release" data-id="' + esc(t.id) + '">Liberar para IDC</button>';
-  if (state.user.role === "idc" && t.status === "available" && t.logistics_status === "ready")
-    actions += '<button class="primary" data-act="claim-idc" data-id="' + esc(t.id) + '">Reservar servicio</button>';
+  if (canManage() && !["completed","cancelled"].includes(t.status) && t.logistics_status === "in_coordination")
+    actions += '<button class="primary" data-act="release" data-id="'+esc(t.id)+'">Completar coordinación</button>';
   return '<article class="ticket-card"><div><div class="folio">' + esc(t.folio) + ' · ' + esc(PRIORITY[t.priority] || t.priority) + '</div>' +
     '<h3>' + esc(t.client) + ' — ' + esc(t.service_type) + '</h3><p><strong>' + esc(t.project) + '</strong> · SITE ID: ' + esc(t.site_id) + '</p>' +
-    '<p>' + esc(t.site_name) + ' · ' + esc(t.region) + '</p><p>Programado: ' + esc(fmtDate(t.scheduled_at)) + '</p><p>' +
+    '<p>Folio de entrada: '+esc(t.access_folio||'No indicado')+'</p><p>' + esc(t.site_name) + ' · ' + esc(t.region) + '</p><p>Programado: ' + esc(fmtDate(t.scheduled_at)) + '</p><p>' +
     pill(t.status, false) + ' ' + pill(t.logistics_status, true) + '</p><p>Apoyo: ' + esc(t.logistics_owner_name || "Sin asignar") +
     ' · IDC: ' + esc(t.idc_owner_name || "Sin asignar") + '</p></div><div class="ticket-actions">' + actions + '</div></article>';
 }
@@ -99,19 +95,18 @@ function renderDashboard() {
   const list = state.tickets;
   const counts = {
     open:list.filter((t) => !["completed","cancelled"].includes(t.status)).length,
-    ready:list.filter((t) => t.logistics_status === "ready" && t.status === "available").length,
+    ready:list.filter((t) => t.logistics_status === "ready" && ["available","assigned"].includes(t.status)).length,
     active:list.filter((t) => ["in_progress","on_hold"].includes(t.status)).length,
     done:list.filter((t) => t.status === "completed").length
   };
-  const title = u.role === "admin" ? "Panel administrativo" : u.role === "logistics" ? "Coordinación logística" : "Mis servicios de campo";
-  app.innerHTML = '<div class="app-shell"><header class="topbar"><div class="brand">FieldConnect <span>Group</span></div>' +
+  const title = u.role === "admin" ? "Panel administrativo" : "Centro de control ejecutivo";
+  app.innerHTML = '<div class="app-shell"><header class="topbar"><div class="brand"><img class="official-logo nav-logo" src="./assets/fieldconnect-official.jpg" alt="Logo oficial">FieldConnect <span>Group</span></div>' +
     '<div class="user-box"><div class="avatar">' + esc((u.name || "U").slice(0,1).toUpperCase()) + '</div><div><div class="user-name">' + esc(u.name) +
-    '</div><div class="role-tag">' + esc(ROLE[u.role]) + '</div></div><button class="quiet" id="logout">Salir</button></div></header><main class="layout">' +
+    '</div><div class="role-tag">' + esc(ROLE[u.role]) + '</div></div><button class="quiet" data-act="password">Contraseña</button><button class="quiet" id="logout">Salir</button></div></header><main class="layout">' +
     '<div class="heading-row"><div><div class="eyebrow">Centro de operaciones</div><h1>' + title + '</h1><p>' +
     (u.role === "admin" ? "Supervisa tickets, responsables y avance de los servicios." :
-      u.role === "logistics" ? "Revisa requisitos y libera servicios preparados para asignación." :
-      "Gestiona tus servicios asignados y documenta su ejecución.") + '</p></div>' +
-    (u.role === "admin" ? '<button class="primary" id="new-ticket">＋ Crear ticket</button>' : '') + '</div>' +
+      "Supervisa responsables, avance y resultados de los servicios.") + '</p></div>' +
+    (canManage() ? '<div class="toolbar"><button class="secondary" data-act="catalogs">Directorio y empresas</button><button class="primary" id="new-ticket">＋ Crear ticket</button></div>' : '') + '</div>' +
     '<section class="stats"><div class="stat"><div class="stat-label">Servicios activos</div><div class="stat-value">' + counts.open +
     '</div><div class="stat-note">Pendientes o en ejecución</div></div><div class="stat"><div class="stat-label">Listos para IDC</div><div class="stat-value">' + counts.ready +
     '</div><div class="stat-note">Liberados por logística</div></div><div class="stat"><div class="stat-label">En ejecución / espera</div><div class="stat-value">' + counts.active +
@@ -140,10 +135,14 @@ function showModal(title, html) {
   el.addEventListener("click", (e) => { if (e.target === el) el.remove(); });
   return el;
 }
-function createTicketModal() {
+async function createTicketModal() {
+  let catalogs;
+  try { catalogs=await api("/api/catalogs"); } catch(err) { return toast(err.message,true); }
+  const select=(name,label,rows)=>'<label>'+label+' *<select name="'+name+'" required><option value="">Selecciona del catálogo</option>'+rows.filter(x=>x.active).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')+'</select></label>';
+
   showModal("Crear servicio / ticket", '<form id="ticket-form"><div class="form-grid">' +
-    '<label>Cliente *<input name="client" required></label><label>Proyecto *<input name="project" required></label>' +
-    '<label>SITE ID *<input name="site_id" required></label><label>Tipo de servicio *<input name="service_type" required></label>' +
+    select("company_id","Empresa",catalogs.companies)+'<label>ID de acceso / folio de entrada *<input name="access_folio" required></label><label>Proyecto *<input name="project" required></label>' +
+    '<label>SITE ID<input value="Se genera al guardar" readonly><small>Consecutivo automático por empresa</small></label>'+select("logistics_owner","Ing. de base de proyecto / apoyo",catalogs.employees.filter(x=>x.kind==="logistics"))+select("idc_owner","IDC asignado",catalogs.employees.filter(x=>x.kind==="idc"))+'<label>Tipo de servicio *<input name="service_type" required></label>' +
     '<label>Nombre del sitio *<input name="site_name" required></label><label>Ciudad o región *<input name="region" required></label>' +
     '<label class="span-2">Domicilio operativo *<input name="address" required></label><label>Contacto<input name="contact_name"></label>' +
     '<label>Teléfono<input name="contact_phone"></label><label>Fecha y hora programada<input type="datetime-local" name="scheduled_at"></label>' +
@@ -168,22 +167,20 @@ async function openDetail(id) {
 }
 function renderDetail(d) {
   const t = d.ticket;
-  const canIDC = state.user.role === "idc" && String(t.idc_owner) === String(state.user.id) && !["completed","cancelled"].includes(t.status);
-  const canNote = state.user.role === "admin" ||
-    (state.user.role === "idc" && String(t.idc_owner) === String(state.user.id)) ||
-    (state.user.role === "logistics" && String(t.logistics_owner) === String(state.user.id));
+  const canIDC = canManage() && !["completed","cancelled"].includes(t.status);
+  const canNote = canManage();
   const checks = Array.isArray(t.close_checklist) ? t.close_checklist : [false,false,false,false,false,false];
   let html = '<div class="heading-row"><div><h2>' + esc(t.client) + ' — ' + esc(t.service_type) + '</h2><p>' + esc(t.project) + ' · SITE ID ' + esc(t.site_id) + '</p></div><div>' +
     pill(t.status, false) + ' ' + pill(t.logistics_status, true) + '</div></div><div class="detail-grid">' +
     detailItem("Sitio / región", t.site_name + " · " + t.region) + detailItem("Domicilio", t.address) +
     detailItem("Programación", fmtDate(t.scheduled_at)) + detailItem("Prioridad", PRIORITY[t.priority] || t.priority) +
-    detailItem("Apoyo logístico", t.logistics_owner_name || "Sin asignar") + detailItem("IDC asignado", t.idc_owner_name || "Sin asignar") +
+    detailItem("ID de acceso / folio de entrada",t.access_folio || "No indicado")+detailItem("Ing. de base de proyecto / apoyo", t.logistics_owner_name || "Sin asignar") + detailItem("IDC asignado", t.idc_owner_name || "Sin asignar") +
     detailItem("Contacto", (t.contact_name || "No indicado") + " · " + (t.contact_phone || "")) +
     detailItem("Progreso", Number(t.progress || 0) + "%") + '</div><div class="detail-section"><h3 class="section-title">Alcance y preparación</h3><div class="detail-grid">' +
     detailItem("Alcance", t.scope) + detailItem("Actividades", t.activities || "No indicadas") + detailItem("Herramientas", t.tools || "No indicadas") +
     detailItem("Materiales", t.materials || "No indicados") + detailItem("Condiciones previas", t.prerequisites || "No indicadas") +
     detailItem("Acceso / observaciones", (t.access_instructions || "") + " " + (t.technical_notes || "")) + '</div></div>';
-  if (state.user.role === "admin") html += '<div class="detail-section"><h3 class="section-title">Información económica · restringida</h3><div class="detail-grid">' +
+  if (canManage()) html += '<div class="detail-section"><h3 class="section-title">Información económica · restringida</h3><div class="detail-grid">' +
     detailItem("Importe acordado", money(t.agreed_amount)) + detailItem("Viáticos", money(t.travel_expenses)) +
     detailItem("Otros gastos", money(t.other_expenses)) + detailItem("Estado de pago", t.payment_status) +
     detailItem("Observaciones económicas", t.financial_notes || "Sin observaciones") + '</div></div>';
@@ -221,10 +218,16 @@ function renderDetail(d) {
 function detailItem(label, value) {
   return '<div class="detail-item"><small>' + esc(label) + '</small><strong>' + esc(value == null ? "" : value) + '</strong></div>';
 }
+async function showCatalogs() {
+  try {
+    const d=await api("/api/catalogs");
+    showModal("Directorio interno y empresas",'<p>Ingeniería de apoyo e IDC se asignan a los tickets sin cuenta de acceso.</p><h3>Empresas</h3>'+d.companies.map(x=>'<p>'+esc(x.name)+'</p>').join('')+
+      '<form id="company-form"><label>Nombre de empresa<input name="name" required maxlength="200"></label><button class="secondary">Agregar empresa</button></form><h3>Personal</h3>'+d.employees.map(x=>'<div class="catalog-row"><span><strong>'+esc(x.name)+'</strong> · '+(x.kind==="logistics"?'Ing. de apoyo':'IDC')+' · '+esc(x.email)+'</span><button class="quiet" data-act="toggle-employee" data-id="'+esc(x.id)+'" data-active="'+x.active+'">'+(x.active?'Desactivar':'Activar')+'</button></div>').join('')+
+      '<form id="employee-form" class="form-grid"><label>Nombre<input name="name" required maxlength="200"></label><label>Tipo<select name="kind"><option value="logistics">Ingeniero de apoyo</option><option value="idc">IDC</option></select></label><label>Correo de contacto<input name="email" type="email"></label><label>Teléfono<input name="phone"></label><div class="span-2"><button class="secondary">Agregar persona</button></div></form><p class="error" id="catalog-error" role="alert"></p>');
+  } catch(err) { toast(err.message,true); }
+}
 async function sendAction(id, action, body) {
-  const endpoints = {
-    "claim-logistics":"/claim-logistics", release:"/release", "claim-idc":"/claim-idc"
-  };
+  const endpoints = { release:"/release" };
   try {
     const result = await api("/api/tickets/" + encodeURIComponent(id) + endpoints[action], { method:"POST", body:"{}" });
     toast(result.message);
@@ -264,6 +267,14 @@ document.addEventListener("submit", async (e) => {
       const error = document.getElementById("login-error");
       if (error) error.textContent = err.message;
     }
+  } else if (form.id === "password-form") {
+    const data=formObject(form);
+    if(data.new_password!==data.confirm_password) { document.getElementById("password-error").textContent="Las contraseñas no coinciden.";return; }
+    try { const r=await api("/api/auth/password",{method:"POST",body:JSON.stringify(data)});document.getElementById("modal-backdrop")?.remove();logout(false);toast(r.message); }
+    catch(err){document.getElementById("password-error").textContent=err.message;}
+  } else if (["employee-form","company-form"].includes(form.id)) {
+    try { await api(form.id==="company-form"?"/api/companies":"/api/employees",{method:"POST",body:JSON.stringify(formObject(form))}); await showCatalogs(); toast("Catálogo actualizado."); }
+    catch(err) { const error=document.getElementById("catalog-error"); if(error)error.textContent=err.message; }
   } else if (form.id === "ticket-form") {
     const data = formObject(form);
     ["agreed_amount","travel_expenses","other_expenses"].forEach((k) => { data[k] = Number(data[k] || 0); });
@@ -329,12 +340,15 @@ document.addEventListener("click", async (e) => {
   if (button.id === "refresh") return refresh();
   const act = button.dataset.act;
   const id = button.dataset.id;
+  if (act === "catalogs") return showCatalogs();
+  if (act === "password") return showModal("Cambiar contraseña",'<form id="password-form"><label>Contraseña actual<input type="password" name="current_password" autocomplete="current-password" required></label><label>Contraseña nueva<input type="password" name="new_password" minlength="12" maxlength="72" autocomplete="new-password" required></label><label>Confirmar contraseña nueva<input type="password" name="confirm_password" minlength="12" maxlength="72" autocomplete="new-password" required></label><p class="tiny">Usa al menos 12 caracteres. Se cerrarán las sesiones anteriores.</p><p class="error" id="password-error" role="alert"></p><button class="primary">Guardar contraseña</button></form>');
+  if (act === "toggle-employee") { try { await api("/api/employees/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({active:button.dataset.active!=="true"})}); await showCatalogs(); } catch(err) { toast(err.message,true); } return; }
   if (act === "close-modal") {
     const modal = document.getElementById("modal-backdrop");
     if (modal) modal.remove();
   } else if (act === "detail") {
     await openDetail(id);
-  } else if (["claim-logistics","release","claim-idc"].includes(act)) {
+  } else if (act === "release") {
     await sendAction(id, act);
   } else if (act === "start") {
     await changeStatus(id, "in_progress", { progress:1 });

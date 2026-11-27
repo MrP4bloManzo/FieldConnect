@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin','logistics','idc')),
+  role TEXT NOT NULL CHECK (role IN ('admin','director')),
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

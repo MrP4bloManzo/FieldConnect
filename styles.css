@@ -333,3 +333,9 @@ dialog.modal-bg:not([open]){display:none}
 dialog.modal-bg::backdrop{background:transparent}
 body:has(dialog[open]){overflow:hidden}
 .dashboard-heading h1{color:#fff}
+/* Official artwork supplied by FieldConnect; preserve the original file. */
+.brand-logo.small,.brand-logo.nav{width:132px;height:76px;object-fit:cover;object-position:50% 53%;border-radius:8px;background:#fff;padding:0}
+.topbar{height:auto;min-height:88px}
+.hero .brand-logo{padding:0}
+.boot-logo{width:180px;height:120px;object-fit:cover;object-position:50% 53%}
+@media(max-width:580px){.brand-logo.nav,.brand-logo.small{width:104px;height:62px}.brand-link .brand-name{display:none}}

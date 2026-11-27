@@ -50,3 +50,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+.official-logo{display:block;width:210px;height:140px;object-fit:cover;object-position:50% 53%;border-radius:10px;background:#fff}
+.brand{display:flex;align-items:center;gap:12px;white-space:normal}.nav-logo{width:125px;height:74px;flex:none}
+.catalog-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e7ebf2;padding:12px 0}.catalog-row span{overflow-wrap:anywhere;min-width:0}
+@media(max-width:540px){.nav-logo{width:95px;height:58px}.brand{font-size:12px}.catalog-row{flex-wrap:wrap}}

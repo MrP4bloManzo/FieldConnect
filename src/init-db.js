@@ -3,10 +3,14 @@ const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const { pool } = require("./db");
+const { schemaBundle } = require("./database-schema");
 
 async function main() {
-  const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
-  await pool.query(schema);
+  await pool.query(schemaBundle());
+  if (process.argv.includes("--demo")) {
+    await pool.query(fs.readFileSync(path.join(__dirname, "seed-demo.sql"), "utf8"));
+    console.log("Catálogos de ejemplo cargados.");
+  }
 
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
@@ -19,6 +23,10 @@ async function main() {
     console.log("Usuario administrador verificado: " + email);
   } else {
     console.log("Esquema listo. Configura SEED_ADMIN_PASSWORD (12+ caracteres) para crear el administrador inicial.");
+  }
+  if (process.env.SEED_DIRECTOR_EMAIL && process.env.SEED_DIRECTOR_PASSWORD?.length >= 12 && !process.env.SEED_DIRECTOR_PASSWORD.startsWith("ChangeMe")) {
+    await pool.query("INSERT INTO users(name,email,password_hash,role) VALUES($1,LOWER($2),$3,'director') ON CONFLICT(email) DO NOTHING",
+      [process.env.SEED_DIRECTOR_NAME || "Directivo", process.env.SEED_DIRECTOR_EMAIL, await bcrypt.hash(process.env.SEED_DIRECTOR_PASSWORD,12)]);
   }
   await pool.end();
 }

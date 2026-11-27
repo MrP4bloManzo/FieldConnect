@@ -1,85 +1,33 @@
 # FieldConnect Group
 
-Plataforma web de gestión de operaciones de ingeniería de campo.
+Plataforma de seguimiento de servicios de ingeniería de campo con el logo oficial de FieldConnect Group.
 
-## Demo interactiva
+**Aplicación:** [FieldConnect Group](https://mrp4blomanzo.github.io/FieldConnect/). La interfaz se publica en GitHub Pages y la API se ejecuta en Supabase Edge Functions, con datos compartidos en PostgreSQL.
 
-Abre el [demo de FieldConnect en GitHub Pages](https://mrp4blomanzo.github.io/FieldConnect/) o abre `index.html` desde la raíz del repositorio. Los perfiles de ejemplo permiten probar el ciclo de un ticket:
+## Accesos y tickets
 
-1. **Administración** crea un ticket.
-2. **Ingeniería de apoyo** reclama la coordinación y libera el servicio.
-3. **Ingeniería de campo** reserva el ticket, inicia el trabajo y lo cierra con checklist, evidencia y resultado.
-4. **Directivo** consulta los indicadores y la pestaña **Equipo y avance**.
+Solo hay dos perfiles de acceso: **Administrador** y **Directivo**. Ambos crean y supervisan tickets y administran los catálogos. Los ingenieros de apoyo y los IDC son personal del directorio, sin login.
 
-Los cambios se guardan en el navegador. El menú **Datos del demo** permite exportar tickets, importar un respaldo y restablecer los ejemplos.
+Al crear un ticket se seleccionan empresa, **ingeniero de base de proyecto / apoyo** e **IDC** del directorio, y se captura el **ID de acceso / folio de entrada**. El **SITE ID** se genera al guardar como consecutivo por empresa (`000001`, `000002`, …), protegido contra duplicados por PostgreSQL.
 
-## Stack
+Administrador y Directivo completan la coordinación y registran el inicio, las incidencias, el checklist, las evidencias y el cierre. El cierre requiere seis puntos del checklist, resultado escrito y al menos una evidencia HTTP/HTTPS.
 
-- Node.js 20+
-- Express
-- PostgreSQL
-- JWT + bcrypt
-- Interfaz web responsive en español
+Los accesos iniciales y contraseñas están en `.local/ACCESOS.txt` del equipo donde se preparó el despliegue. Ese archivo no se publica. El botón **Contraseña** permite cambiarlas e invalida las sesiones anteriores.
 
-## Funciones
+## Desarrollo y despliegue
 
-- Roles: administración (`admin`), ingeniería de apoyo (`logistics`) e IDC (`idc`).
-- Creación y consulta de tickets de servicio.
-- Coordinación logística previa y liberación del servicio.
-- Reserva exclusiva de tickets mediante una actualización atómica en PostgreSQL.
-- Seguimiento de ejecución, espera, notas técnicas e incidencias.
-- Checklist de cierre de seis puntos, resultado escrito y al menos una evidencia.
-- Historial de auditoría.
-- Información económica restringida a administración.
-- Configuración inicial de despliegue en Render (`render.yaml`).
+Consulta [la guía de Supabase y GitHub Pages](docs/SUPABASE.md).
 
-## Requisitos
+- `npm ci`: instala dependencias.
+- `npm test`: pruebas de migración, API, sesiones y adaptación Fetch.
+- `npm run build:web`: prepara `public/` en `dist/` para Pages.
+- `npm run build:edge`: sincroniza los controladores compartidos de la función Supabase.
+- `npm start`: servidor Express local, con las variables de `.env.example`.
+- `npm run db:init`: inicializa/migra la base seleccionada.
+- `npm run db:demo`: carga catálogos y un ticket ficticios, de forma opcional.
 
-Node.js 20+, npm y PostgreSQL 14+.
+El workflow de GitHub publica la interfaz al actualizar `main`. La API se despliega en Supabase por separado. La versión de Express y la función remota comparten `src/api.js`.
 
-## Ejecución local
+Las tablas están en el esquema privado `fieldconnect`, con RLS habilitado. La API usa credenciales del entorno de Supabase y comprueba cuenta, rol y versión de sesión en cada petición. La interfaz no contiene secretos de base de datos. Se conservan intactas las tablas anteriores de `public`.
 
-1. Instala dependencias: `npm install`.
-2. Copia `.env.example` a `.env` y configura `DATABASE_URL`, `JWT_SECRET` (mínimo 32 caracteres) y una contraseña administrativa segura.
-3. Inicializa el esquema: `npm run db:init`.
-4. Inicia: `npm start`.
-5. Abre `http://localhost:3000`.
-
-Genera un secreto JWT con `openssl rand -hex 32`. El administrador inicial se crea si `SEED_ADMIN_PASSWORD` tiene al menos 12 caracteres y no utiliza la contraseña de ejemplo.
-
-## Despliegue
-
-1. Conecta el repositorio en Render mediante **New → Blueprint**.
-2. Revisa el PostgreSQL gestionado creado por `render.yaml`.
-3. Establece `SEED_ADMIN_PASSWORD` como secreto seguro en las variables del servicio.
-4. Despliega y comprueba `/api/health`.
-5. Inicia sesión usando `SEED_ADMIN_EMAIL` y la contraseña configurada.
-
-No subas archivos `.env` ni credenciales a GitHub.
-
-## Endpoints principales
-
-| Método | Ruta | Acceso | Función |
-|---|---|---|---|
-| GET | `/api/health` | Público | Estado del servidor |
-| POST | `/api/auth/login` | Público | Iniciar sesión |
-| GET | `/api/auth/me` | Autenticado | Usuario actual |
-| GET | `/api/tickets` | Autenticado | Listar tickets según rol |
-| POST | `/api/tickets` | Admin | Crear ticket |
-| GET | `/api/tickets/:id` | Autenticado | Consultar detalle e historial |
-| POST | `/api/tickets/:id/claim-logistics` | Logística | Reclamar coordinación |
-| POST | `/api/tickets/:id/release` | Logística/Admin | Liberar para IDC |
-| POST | `/api/tickets/:id/claim-idc` | IDC | Reservar servicio |
-| POST | `/api/tickets/:id/status` | Según transición | Cambiar estado |
-| PUT | `/api/tickets/:id/checklist` | IDC asignado | Actualizar checklist |
-| POST | `/api/tickets/:id/notes` | Según asignación | Nota, incidencia o bloqueo |
-| POST | `/api/tickets/:id/evidence` | IDC asignado/Admin | Registrar evidencia por URL |
-| GET | `/api/users` | Admin/Logística | Consultar usuarios |
-| POST | `/api/users` | Admin | Crear usuario |
-
-## Limitaciones de esta versión
-
-- La evidencia se registra mediante URL HTTP/HTTPS; no hay almacenamiento de archivos binarios.
-- No incluye recuperación de contraseña ni MFA.
-- La validación integral, pruebas automatizadas contra una base de datos real y revisión de seguridad son necesarias antes de utilizar datos productivos.
-- Revisar los planes y costos de Render antes de desplegar.
+El demo estático anterior permanece en la raíz del repositorio; usa datos locales del navegador y no es la aplicación publicada. Las evidencias se registran por URL; no hay carga de archivos binarios, MFA ni recuperación de contraseña por correo en esta versión.
