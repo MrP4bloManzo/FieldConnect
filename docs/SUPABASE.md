@@ -38,7 +38,7 @@ La empresa se escribe en el formulario. La API busca su nombre normalizado (espa
 
 Los índices de `created_at` y `closed_at` apoyan los reportes. `src/migration-analytics.sql` conserva los tickets históricos y deja sin estado o evaluación los datos que no se hayan registrado. No infiere satisfacción a partir de un cierre.
 
-El PNG oficial recibido se conserva sin alterar; su fondo cuadriculado está integrado en los píxeles del archivo y no es transparencia real. Los colores de interfaz corresponden a la paleta corporativa solicitada.
+El logo oficial `fieldconnect-logo-clean.png` conserva el PNG transparente entregado por el usuario. El encuadre de la interfaz muestra el símbolo, el nombre y el lema completos. Los colores de interfaz corresponden a la paleta corporativa solicitada.
 
 ## Publicación y mantenimiento
 
